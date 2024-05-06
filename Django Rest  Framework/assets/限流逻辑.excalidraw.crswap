@@ -1,0 +1,175 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "b8tpAfsKvuYNSkAGKQGGH",
+      "type": "text",
+      "x": 444,
+      "y": 280,
+      "width": 272,
+      "height": 57.599999999999994,
+      "angle": 0,
+      "strokeColor": "#c92a2a",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "roundness": null,
+      "seed": 601623553,
+      "version": 185,
+      "versionNonce": 1914674241,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1679705914325,
+      "link": null,
+      "locked": false,
+      "text": "限制访问频率要找到用户的唯一标识：\n已登录的用户：用户ID、用户信息\n未登录的用户：IP地址",
+      "fontSize": 16,
+      "fontFamily": 3,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "限制访问频率要找到用户的唯一标识：\n已登录的用户：用户ID、用户信息\n未登录的用户：IP地址",
+      "lineHeight": 1.2
+    },
+    {
+      "id": "QI-XIhwxARTREVByE9Equ",
+      "type": "text",
+      "x": 439.24237060546875,
+      "y": 388.69696044921875,
+      "width": 572,
+      "height": 38.4,
+      "angle": 0,
+      "strokeColor": "#c92a2a",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "roundness": null,
+      "seed": 1661222913,
+      "version": 144,
+      "versionNonce": 649078863,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "id": "vNb02GHW2-nA1B0Kn8B_y",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1679706133996,
+      "link": null,
+      "locked": false,
+      "text": "逻辑：\n获取用户ID，维护一个访问记录列表。\"user_info\"：['x:xx','x:xx'....]",
+      "fontSize": 16,
+      "fontFamily": 3,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "逻辑：\n获取用户ID，维护一个访问记录列表。\"user_info\"：['x:xx','x:xx'....]",
+      "lineHeight": 1.2
+    },
+    {
+      "id": "1AWbHQSZtVeqBp5Zu2XPD",
+      "type": "text",
+      "x": 443.8787841796875,
+      "y": 441.0303039550781,
+      "width": 349.75,
+      "height": 96,
+      "angle": 0,
+      "strokeColor": "#087f5b",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "roundness": null,
+      "seed": 768344609,
+      "version": 374,
+      "versionNonce": 172246639,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "id": "vNb02GHW2-nA1B0Kn8B_y",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1679706133997,
+      "link": null,
+      "locked": false,
+      "text": "1. 获取当前时间 - 限流时间 = 计数开始时间\n2. 删除小于计数开始时间的数据\n3. 计算列表的长度：\n        - 超出指定长度：返回错误，次数过多\n        - 小于指定长度：正常访问",
+      "fontSize": 16,
+      "fontFamily": 3,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "1. 获取当前时间 - 限流时间 = 计数开始时间\n2. 删除小于计数开始时间的数据\n3. 计算列表的长度：\n        - 超出指定长度：返回错误，次数过多\n        - 小于指定长度：正常访问",
+      "lineHeight": 1.2
+    },
+    {
+      "id": "vNb02GHW2-nA1B0Kn8B_y",
+      "type": "arrow",
+      "x": 879.9998779296875,
+      "y": 429.09088134765625,
+      "width": 81.21209716796875,
+      "height": 24.242401123046875,
+      "angle": 0,
+      "strokeColor": "#087f5b",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "roundness": {
+        "type": 2
+      },
+      "seed": 915571823,
+      "version": 31,
+      "versionNonce": 2046855201,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1679706133997,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -81.21209716796875,
+          24.242401123046875
+        ]
+      ],
+      "lastCommittedPoint": null,
+      "startBinding": {
+        "elementId": "QI-XIhwxARTREVByE9Equ",
+        "focus": -0.6444312678870917,
+        "gap": 1.9939208984375227
+      },
+      "endBinding": {
+        "elementId": "1AWbHQSZtVeqBp5Zu2XPD",
+        "focus": 0.18008155783643687,
+        "gap": 5.15899658203125
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {}
+}
