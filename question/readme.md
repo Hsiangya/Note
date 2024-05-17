@@ -28,3 +28,70 @@ func canJump(nums []int) bool {
 }
 ```
 
+## 爬楼梯
+
+假设你正在爬楼梯。需要 `n` 阶你才能到达楼顶。
+
+每次你可以爬 `1` 或 `2` 个台阶。你有多少种不同的方法可以爬到楼顶呢？
+
+**函数方式**：
+
+- 到达第n阶的方法数=到达第n-1阶的方法数+到达第n-2阶的方法数
+
+```go
+func climbStairs(n int) int {
+    if n<2{
+        return 1
+    }
+
+    dp:=make([]int,n+1)
+    dp[0]=1
+    dp[1]=1
+    for i:=2;i<n+1;i++{
+        dp[i]=dp[i-1]+dp[i-2]
+    }
+    return dp[n]
+}
+```
+
+**递归方式**：
+
+- 出口：n<2
+- 状态转移：`dp[i]=dp[i-1]+dp[i-2]`
+
+```go
+func climbStairs(n int) int {
+    if (n<2){
+        return 1 
+    }
+    return climbStairs(n-1)+climbStairs(n-2)
+}
+```
+
+## 打家劫舍
+
+你是一个专业的小偷，计划偷窃沿街的房屋。每间房内都藏有一定的现金，影响你偷窃的唯一制约因素就是相邻的房屋装有相互连通的防盗系统，**如果两间相邻的房屋在同一晚上被小偷闯入，系统会自动报警**。
+
+给定一个代表每个房屋存放金额的非负整数数组，计算你 **不触动警报装置的情况下** ，一夜之内能够偷窃到的最高金额。
+
+- 判断当前index与`index-2`能偷到的最大的值
+- 判断`index-1`偷盗的最大的钱
+- 选取两个节点最大的钱数
+
+```go
+func rob(nums []int) int {
+    total:=len(nums)
+    if total==1{
+        return nums[0]
+    }
+    before:=nums[0]
+    beforeTwo:=0
+    for i:=1;i<total;i++{
+        tem:=max(before,beforeTwo+nums[i])
+        beforeTwo=before
+        before=tem
+    }
+    return before
+}
+```
+
