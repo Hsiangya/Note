@@ -76,6 +76,10 @@
 
 ![image-20240522223145356](./assets/image-20240522223145356.png)
 
+### go中的HashMap
+
+![image-20240523225023502](./assets/image-20240523225023502.png)
+
 # Channel
 
 ## 数据结构
