@@ -590,7 +590,161 @@ uint32==0时：
 
 ## RWMutex
 
+### 结构
 
+- 只读时，让其他人不能修改即可
+- 只读时，多协程可以共享读
+- 只读时，不需要互斥锁
+
+![image-20240529175721853](./assets/image-20240529175721853.png)
+
+读写锁需求：
+
+- 每个锁分为读锁和写锁，写锁互斥
+- 没有加写锁时，多个协程都可以加读锁
+- 加了写锁时，无法加读锁，读协程派对等待
+- 加了读锁，写锁排队等待
+
+![image-20240529181158420](./assets/image-20240529181158420.png)
+
+### 写锁
+
+- 先加mutex写锁，若已经被加写锁会阻塞等待
+- 将readerCount变为负值，阻塞读锁的获取
+- 计算需要等待多少个读goroutine释放
+- 如果需要等待读goroutine释放，陷入writeSem
+
+#### 加锁
+
+![image-20240529183158786](./assets/image-20240529183158786.png)![image-20240529184208270](./assets/image-20240529184208270.png)
+
+#### 解锁
+
+- 将readerCount变为正值，允许读锁的获取
+- 释放readerSem中等待的读goroutine
+- 解锁mutex
+
+![image-20240529184952307](./assets/image-20240529184952307.png)
+
+### 读锁
+
+#### 加锁
+
+- 将readerCount无脑加一
+- 如果readerCounter是正数，加锁成功
+- 如果readerCount是负数，说明被加了写锁，陷入readerSem
+
+![image-20240529185958796](./assets/image-20240529185958796.png)
+
+#### 解锁
+
+- 给readerCount减1
+- 如果readerCount是正数，解锁成功
+- 如果readerCount是负数，有写锁在排队
+  - 如果自己是readerWait的最后一个，唤醒写goroutine
+
+![image-20240529191031919](./assets/image-20240529191031919.png)
+
+### 总结
+
+场景：
+
+- RW锁适合读多写少的场景，减少锁冲突
+- Mutex用来写goroutine之间互斥等待
+- 读goroutine使用readerSem等待写锁的释放
+- 写goroutine使用writerSem等待锁的释放
+- readerCount记录读goroutine个数
+- readerWait记录写goroutine之前的读goroutine个数
+
+## WaitGroup
+
+### wait
+
+![image-20240529200853490](./assets/image-20240529200853490.png)
+
+### done
+
+- 被等待协程做完，给counter减1
+- 通过Add(-1)实现
+
+![image-20240529201637531](./assets/image-20240529201637531.png)
+
+### 总结
+
+- WaitGroup实现了一组goroutine等待另一组goroutine
+- 等待的goroutine陷入sema并记录个数
+- 被等待的goroutine计数归零时，唤醒所有sema中的goroutine
+
+## once
+
+整个程序运行过程中，代码只执行一次
+
+思路1：找一个变量记录一下，从0变成1就不再做了
+
+- 做法：CAS改值，成功就做
+- 方法简单，多个goroutine竞争CAS改值会造成性能问题
+
+思路2：Mutex
+
+- 争抢一个mutex,抢不到陷入sema休眠
+- 抢到的执行代码，改值，释放锁
+- 其他goroutine唤醒后判断值已经修改，直接返回
+
+![image-20240529203323312](./assets/image-20240529203323312.png)
+
+执行方式：
+
+- 先判断是否已经改值
+- 没改，尝试获取锁
+- 获取到锁的goroutine执行业务，修改值，解锁
+- 冲突goroutine唤醒后直接返回
+
+**总结**：
+
+- 实现了一段代码只执行一次
+- 使用标志加mutex实现了并发冲突的优化
+
+## 锁异常排查
+
+### 锁拷贝问题
+
+- 锁拷贝可能导致锁的死锁问题
+
+  ![image-20240529204215707](./assets/image-20240529204215707.png)
+
+- 使用go vet main.go 可以检查是否有锁拷贝的情况
+
+- vet还能检测可能的bug或者可疑的构造
+
+### RACE竞争检测
+
+源码中到处都有race竞争检测
+
+```go
+if race.Enabled {
+    race.Acquire(unsafe.Pointer(m))
+}
+return
+```
+
+- 发现隐形函数竞争问题
+- 使用go build -race main.go 然后运行，如果存在锁竞争，运行编译后的文件的时候会报错
+- 可能是加锁的建议
+- 可能是BUG的提醒
+
+### go-deadlock检测
+
+死锁检测：`https://github.com/sasha-s/go-deadlock`
+
+- 检测可能的死锁
+- 实际是检测获取锁的等待时间
+- 用来排查bug和性能问题
+
+### 总结
+
+- go ver 检测bug或者可以的构造
+- race 发现隐含的数据竞争问题
+- go-deadlock检测可能的死锁
 
 # Channel
 
