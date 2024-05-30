@@ -936,6 +936,120 @@ timer：
 
    > TIME-WAIT状态持续一段时间（通常是2个最大段生命周期（MSL）），确保服务器接收到最终的ACK。一旦这个时间过去，连接被完全关闭，并且双方都释放了所有资源。
 
+## scoket
+
+- 很多系统都提供Socket作为TCP网络连接的抽象
+
+- Linux --> INternet domain socket -> SOCK_STREAM
+
+  > 每次有一个三次握手，就有一个socket，不需要再关心底层
+
+- Linux 中socket以“文件描述符"FD作为标识
+
+![image-20240531011955230](./assets/image-20240531011955230.png)
+
+## IO模型
+
+IO模型指的是同时操作Socket的方案
+
+### 阻塞IO
+
+- 同步读写Socket时，线程陷入内核态
+- 当读写成功后，切换回用户态，继续执行
+- 优点：开发难度小，代码简单
+- 缺点：内核态切换开销大
+
+![image-20240531012626949](./assets/image-20240531012626949.png)
+
+### 非阻塞IO
+
+- 如果暂时无法收发数据，会返回错误
+- 应用会不断轮寻，知道socket可以读写
+- 优点：不会陷入内核态，自由度高
+- 缺点：需要自旋轮寻
+
+![image-20240531012840494](./assets/image-20240531012840494.png)
+
+### 多路复用-epoll
+
+- 注册多个Socket事件
+- 调用epoll，当有事件发生，返回
+- 有点：提供了事件列表，不需要查询各个socket
+- 缺点：开发难度大，逻辑复杂
+- mac：kqueue; windows：IOCP
+
+![image-20240531013707576](./assets/image-20240531013707576.png)
+
+### 总结
+
+- 操作系统提供了socket作为tcp通信的抽象
+- IO模型指的是操作Socket的方案
+- 阻塞模型最利于业务编写，但是性能最差
+- 多路复用性能好，但业务编写麻烦
+
+## 阻塞模型+多路复用
+
+### 原理
+
+![image-20240531014439622](./assets/image-20240531014439622.png)
+
+![image-20240531014624100](./assets/image-20240531014624100.png)
+
+- 在底层使用操作系统的多路复用IO
+- 在goroutine层次使用阻塞模型
+- 阻塞goroutine时，休眠goroutine
+
+由于go是跨平台的，所以一定有一个抽象层，统一操作系统的多路复用：
+
+- 新建多路复用器：epoll_create()
+- 往多路复用器里插入需要监听的事件：epoll_ctl()
+- 查询发生了什么事件：epoll_wait()
+
+![image-20240531023504085](./assets/image-20240531023504085.png)
+
+go Network Poller多路复用器的抽象：
+
+- Go Network Poller 对于多路复用器的抽象和适配
+- epoll_create() --> netpollinit()
+- epoll_ctl() --> netpollopen()
+- epoll_wait() --> netpoll()
+
+不用再关心底层操作系统以及使用的是什么形式的多路复用，直接调用对应方法
+
+### netepollinit
+
+- 新建Epoll
+- 新建一个pipe管道用于中断Epoll
+- 将“管道有数据到达“事件注册在Epoll中
+
+![image-20240531024451184](./assets/image-20240531024451184.png)
+
+### netpollopen
+
+- 传入一个Socket的FD和pollDesc指针
+- pollDesc指针是Socket相关详细信息
+- pollDesc中记录了哪个goroutine休眠在等待此Socket
+- 将Socket可读、可写、断开事件注册到Epoll中
+
+
+
+![image-20240531025458386](./assets/image-20240531025458386.png)
+
+### netpoll
+
+- 调用epoll_wait()，查询有哪些事件发生
+- 根据socket相关的pollDesc信息，返回哪些goroutine可以唤醒
+
+![image-20240531031846730](./assets/image-20240531031846730.png)![image-20240531031907681](./assets/image-20240531031907681.png)![image-20240531031950575](./assets/image-20240531031950575.png)![image-20240531032017422](./assets/image-20240531032017422.png)
+
+### 总结
+
+- go将多路复用器的操作进行了抽象和适配;
+  - 将新建多路复用器抽象为了netpollinit()
+  - 将插入监听事件抽象为了netpollopen()
+  - 将查询事件抽象为了netpoll
+  - 但不是返回事件，而是返回等待事件的goroutine列表
+
 
 
 # 内存管理
