@@ -1050,6 +1050,118 @@ go Network Poller多路复用器的抽象：
   - 将查询事件抽象为了netpoll
   - 但不是返回事件，而是返回等待事件的goroutine列表
 
+## Network Poller
+
+### 初始化
+
+- poll_runtime_pollServerInit()
+- 使用原子操作保证只初始化一次
+- 调用netpollinit()
+
+![image-20240531120141618](./assets/image-20240531120141618.png)
+
+
+
+### 工作(pollcache和pollDesc)
+
+- pollcache：一个带锁的链表头
+
+- pollDesc：链表成员
+
+- pollDesc是runtime包对socket详细的描述
+
+- rg，wg：1,或2,或等待的gouroutine的地址
+
+  ![image-20240531121333243](./assets/image-20240531121333243.png)
+
+![image-20240531121150721](./assets/image-20240531121150721.png)
+
+### 新增监听Socket(pollOPen)
+
+![image-20240531122900745](./assets/image-20240531122900745.png)![image-20240531122942921](./assets/image-20240531122942921.png)
+
+- poll_runtime_pollOpen()
+- 在pollcache链表中分配一个pollDesc
+- 初始化pollDesc（rg，wg都为0）
+- 调用netpollopen()
+
+### 收发数据
+
+#### socket已经可读写
+
+- runtime循环调用netpoll方法（g0 gotoutine）
+- 发现socket可读或可写，给对应的rg或者wg置为pdReady(1)
+- goroutine调用poll_runtime_pollWait()
+- 判断rg或者wg已经置为pdReady(1)，返回0
+
+![image-20240531140756187](./assets/image-20240531140756187.png)![image-20240531141723838](./assets/image-20240531141723838.png)
+
+![image-20240531142358659](./assets/image-20240531142358659.png)![image-20240531142434467](./assets/image-20240531142434467.png)
+
+
+
+#### socket暂时无法读写
+
+- runtime循环调用netpoll()方法（g0 gouroutine）
+
+- gouroutine调用poll_runtime_pollWait()
+- 发现对应的rg或者wg置为0
+- 给对应的rg或者wg置为goroutine地址
+- 休眠等待
+- runtime后续循环调用netpoll方法 发现可读状态，会被推送到toRun链表中
+- 发现socket可读写时，给对应的查看对应的rg或者wg
+- 若为goroutine地址，返回goroutine地址
+- 调度器开始调度对应gotourine
+
+![image-20240531143410799](./assets/image-20240531143410799.png)
+
+#### 总结
+
+![image-20240531143815798](./assets/image-20240531143815798.png)
+
+- Network Poller是Runtime的强大工具
+- 抽象了多路复用的操作
+- Network Poller可以自动监测多个Socket状态
+- 在Socket状态可用时，快速返回成功
+- 在Socket状态不可用时，休眠等待
+
+## Scoket（net包）
+
+- go原生的网络包
+- 实现了TCP、UDP、HTTP登网络操作
+
+### listen
+
+- 新建一个socket，并执行bind操作
+- 新建一个FD（net包对socket的详情描述）
+- 返回一个TCPListener对象
+- 将TCPListener的FD信息加入监听
+- TCPListener对象本质上是一个LISTEN状态的socket
+- 从通信过程来看，走到了第一步
+
+![image-20240531152737700](./assets/image-20240531152737700.png)
+
+![image-20240531151125715](./assets/image-20240531151125715.png)
+
+### Accept
+
+- 直接调用socket的accept
+- 试过失败，休眠等待新的连接
+- 将新的socket包装为tcpConn变量返回
+- 将TCP Conn的FD信息加入监听
+- TCPConn本质上是一个ESTABLISHED状态的Socket
+- 从通信过程来看，走到了第二步
+
+![image-20240531152708170](./assets/image-20240531152708170.png)
+
+![image-20240531153602085](./assets/image-20240531153602085.png)
+
+
+
+![image-20240531153358275](./assets/image-20240531153419092.png)![image-20240531153440792](./assets/image-20240531153440792.png)
+
+![image-20240531153514337](./assets/image-20240531153514337.png)
+
 
 
 # 内存管理
