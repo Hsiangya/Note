@@ -51,3 +51,26 @@ multipass list
 multipass mount ~/kubernetes/master master:~/master
 ```
 
+## 配置网络
+
+```bash
+# 进入虚拟ubuntu
+multipass shell systemname
+```
+
+# 搭建集群
+
+## 创建虚拟机
+
+```bash
+# 创建slave虚拟机
+multipass launch --name slaveone --cpus 4 --memory 10G --disk 100G
+multipass launch --name slavetwo --cpus 4 --memory 10G --disk 100G
+```
+
+## mongodb
+
+
+
+
+

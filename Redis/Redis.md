@@ -485,8 +485,6 @@ r.sdiffstore("set4", "set2", "set3")
 print('set4 = set2 - set3:\t', r.smembers("set4"))
 ```
 
-
-
 **交集** 
 sinter(keys, *args)
 获取多一个name对应集合的交集
@@ -503,8 +501,6 @@ sinterstore(dest, keys, *args)
 r.sinterstore("set4", "set2", "set3")  # 取2个集合的交集
 print(r.smembers("set4"))
 ```
-
-
 
 **并集** 
  sunion(keys, *args)
@@ -533,8 +529,6 @@ print('3 in set2:\t', r.sismember("set2", 3))
 print('4 in set2:\t', r.sismember("set2", 4))
 ```
 
-
-
 **移动**
 smove(src, dst, value)
 将某个成员从一个集合中移动到另外一个集合
@@ -544,8 +538,6 @@ r.smove("set2", "set3", 1)
 print(r.smembers("set1"))
 print(r.smembers("set2"))
 ```
-
-
 
 **删除** 随机删除并且返回被删除值
 spop(name)
@@ -670,7 +662,7 @@ redis解决哈希冲突方式就是链式哈希：
 
 第二步设计大量的数据拷贝，如果一次性把哈希表1中的数据都迁移完，会造成Redis线程阻塞，无法服务其他请求，此时Redis无法快速访问数据，为了避免这个问题，redis采用了渐进式rehash:
 
-- 第二部拷贝数据时，Redis仍然可以处理客户端请求，每处理一个请求时，从哈希表1中的第一个索引位置开始，顺带着将这个索引位置上的所有entries拷贝到哈希表2；等待处理下一个请求时，再顺带拷贝哈希表1中的下一个索引位置的entries,如下图：
+- 第二步拷贝数据时，Redis仍然可以处理客户端请求，每处理一个请求时，从哈希表1中的第一个索引位置开始，顺带着将这个索引位置上的所有entries拷贝到哈希表2；等待处理下一个请求时，再顺带拷贝哈希表1中的下一个索引位置的entries,如下图：
 
 ![image-20230612154838176](./assets/image-20230612154838176.png)这样就巧妙的把一次性大量拷贝的开销，分摊到了多次处理请求中，避免了好事操作，保证了数据的快速访问。
 
