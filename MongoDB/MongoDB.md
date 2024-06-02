@@ -188,3 +188,48 @@ mongo -u hsiangya -p xy159951 --authenticationDatabase admin
 
 ![image-20230607105341285](./assets/image-20230607105341285.png)
 
+## 聚合
+
+### 简介
+
+mongodb聚合框架是一个计算框架，它可以：
+
+- 作用在一个或几个集合上
+- 对集合中的数据进行一系列运算
+- 将这些数据转化为期望的形式
+
+从效果而言，聚合框架相当于SQL查询中的：
+
+- GROUP BY
+- LEFT OUTER JOIN
+- AS等
+
+整个聚合运算过程成为管道（Pipeline），他是由多个步骤（Stage）组成的，每个管道：
+
+- 接受一系列文档（原始数据）
+- 每个步骤对这些文档进行一系列运算
+- 结果文档输出给下一个步骤
+
+![image-20240602220428393](./assets/image-20240602220428393.png)
+
+### stage
+
+```bash
+pipeline = [$stage1, $stage2, $stage3,....,$stageN]
+db.<collection>.aggregate(pipeline, {options});
+```
+
+| 步骤          | 作用     | SQL等价运算符  |
+| ------------- | -------- | -------------- |
+| $match        | 过滤     | WHERE          |
+| $project      | 投影     | AS             |
+| $sort         | 排序     | ORDER BY       |
+| $group        | 分组     | GROUP BY       |
+| $skip/$limit  | 结果限制 | SKIP/LIMIT     |
+| $lookup       | 左外联接 | LEFT OUTERJOIN |
+| $unwind       | 展开数组 | /              |
+| $graphLookup  | 图搜索   | /              |
+| $face/$bucket | 分面搜索 | /              |
+
+![image-20240602221613915](./assets/image-20240602221613915.png)![image-20240602221821552](./assets/image-20240602221821552.png)
+
