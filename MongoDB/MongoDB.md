@@ -478,3 +478,277 @@ rs.slaveOk()
 - 默认情况在主节点上进行读取，可以确保读取到最新的数据
 - 可以配置从从节点读取数据
 - 主节点故障，会自动选举一个新节点，过程中短暂无法写入
+
+# 事物
+
+## 写操作
+
+### writeConcern
+
+决定一个写操作落到多少个节点才算成功：
+
+- 0：发起写操作，不关心是否成功
+- 1~n：写操作需要被复制到制定节点数才算成功
+- majority：写操作需要被复制到大多数节点才算成功
+
+> 发起写操作的程序将阻塞到写操作到达制定的节点数为止
+
+![image-20240603150329266](./assets/image-20240603150329266.png)
+
+### journal
+
+定义如何才算成功
+
+- true：写操作落到journal文件中才算成功
+- false：写操作达到内存即算作成功
+
+![image-20240603150628855](./assets/image-20240603150628855.png)
+
+## 读操作
+
+数据读取需要关注两个问题：
+
+1. 从哪里读，关注数据节点位置
+2. 什么样的数据可以读，关注数据隔离行
+
+### readPerference
+
+决定使用哪一个节点来满足正在发起的读取请求：
+
+- primary：只选择主节点
+- primaryPreferred：优先主节点，不可用则选择从节点
+- secondary：只选择从节点
+- secondaryPreferred：优先选择从节点，如果从节点不可用则选择主节点
+- nearest：选择最近的节点
+
+**举例**:
+
+- 用户下订单后马上将用户转到订单详情页：primary/primaryPreferred，从节点kenned还没复制到新订单
+- 用户查询自己下过的订单：secondary/secondayPreferred：历史订单记录对时效性要求不高
+- 生成报表：secondary，报表对时效性要求不高，资源需求大，可以在从节点单独处理，避免对线上用户造成影响
+- 将用户上传的图片分发到全世界，用户就近读取：nearest：选择就近节点读取
+
+**readPreference与Tag**:
+
+readPreference只能控制使用一类节点，Tag则可以将节点选择控制到一个或几个，考虑一下场景：
+
+- 一个5节点的复制集
+- 3个节点硬件较好，专用于服务线上客户
+- 2个节点硬件较差，专用于生成报表
+
+通过Tag实现控制目的
+
+- 3个好节点打上`{purpose:"online"}`标签
+- 2个差节点打上`{purpose:"analyse"}`标签
+- 在线应用读取时制定online，报表读取制定reporting
+
+**配置方式：**
+
+- 通过连接串参数配置：`mongodb://host1:port,host2:port,host3:port/?replicaSet=rs0&readPreference=secondary`
+- 通过驱动程序API：`MongoCollection.withReadPreference(ReadPreference readPref)`
+- Mongo Shell：`db.collection.find({}).readPref("secondary")`
+
+**注意事项：**
+
+- 制定readPreference时也应注意高可用问题：
+
+  > 指定primary时，发生故障转移期间没有节点可读，业务允许应使用primaryPreferred
+
+- 使用Tag也会有同样的问题：
+
+  > 如果一个节点拥有一个特定的tag，则该节点失效将无节点可读
+
+- Tag有时需要与优先级、选举权综合考虑
+
+  > 不希望升级为主节点，则应设置优先级为0
+
+### readConcern
+
+readConcern决定节点上哪些数据可读，类似与关系型数据库的隔离级别
+
+- available：读取所有可用的数据
+- local：读取所有可用且属于当前分片的数据
+- majority：读取在大作数节点上提交完成的数据
+- linearizable：可线性化读取文档
+- snapshot：读取最近快照中的数据
+
+**local与available：**
+
+复制集中local和available没有区别，一个chunk x shard1向shard2迁移，迁移过程中chunk x部分数据会在shard1和shard2同时存在，但源分片人然是chunk x的负责方
+
+![image-20240603153415525](./assets/image-20240603153415525.png)
+
+- 所有对chunk x的读写操作依然进入shard1
+- config中记录的信息chunk x 依然属于shard1
+
+此时读取shard2，则会出现local和available的区别：
+
+- local：只取应该有shard2负责的数据（不包括x）
+- available：shard2上有什么就读什么（包括x）
+
+> - 看上去总应该选择local，但对结果集过滤会造成额外消耗，无关紧要场景可以选择available
+> - 3.6版本以后不支持从节点使用readConcern为local
+> - 从节点读取数据时默认是local，从从节点读取数据时默认是available（向前兼容原因）
+
+**majority:**
+
+读取大多数数据节点上都提交了的数据
+
+![image-20240603154118448](./assets/image-20240603154118448.png)
+
+应用需要在t5时刻才能读取到更新后的数据，考虑t3时刻的Seconday1,此时：
+
+- 对于要求majority的读操作，他将返回x=0
+- 对于不要求majority的读操作，他将返回x=1
+
+**实现原理:**
+
+- 节点上维护多个x版本，MVCC机制，通过维护多个快照来链接不同的版本：
+- 每个被大多数节点确认过的版本都将是一个快照
+- 快照持续到没有使用为止才被删除
+
+**mongodb中的回滚:**
+
+- 写操作到达大多数节点之前都是不安全的，一旦主节点崩溃，而从节点还没复制到该次操作，刚才的写操作就丢失了
+- 把一次写操作视为一个事物，从事物的角度，可以认为事物被混滚了
+
+从分布式系统的角度来看，事物的提交被提升到了分布式集群的多个节点级别的提交，而不再单个节点的体积哦啊
+
+在可能发生回滚的前提下考虑脏读问题
+
+- 如果一次写操作到达大多数节点前读取了gheg写操作，然后因为系统故障回滚了，则发生了脏读问题
+- 使用{readConcern:"majority"}可以有效避免脏读
+
+**readConcern如何实现安全的读写分离：**
+
+场景：向主节点写入一条数据，立即从从节点读取这条数据
+
+- 使用一下方式可能独步到刚写入的订单
+
+  ![image-20240603155144988](./assets/image-20240603155144988.png)
+
+- 使用writeConcern+readConcern mahority解决
+
+  ![image-20240603155302573](./assets/image-20240603155302573.png)
+
+- readConcern主要关注读的隔离性，ACID中的Isolation
+- readConcern相当于关系型数据库的read committed（读已提交）隔离级别
+
+**linearizable：**
+
+只读取大多数节点确认过的数据，和majority最大差别是保证绝对的操作线性顺序，在写操作自然事件后面的发生的读，一定可以读到之前的写数据：
+
+- 只对读取单个文档时有效
+- 可能导致非常慢的读，因此总是建议配合maxTimeMS
+
+![image-20240603155912026](./assets/image-20240603155912026.png)
+
+**snapsho:**
+
+只在多文档事物中生效，将一个事物的readConcern设置为snapshot，将保证在事物中的读：
+
+- 不出现脏读
+- 不出现不可重复读
+- 不出幻读
+
+因为所有的读都将使用同一个快照，知道事物提交为止，该快照才被释放
+
+## 多文档事物
+
+4.2开始全面支持多文档事物，但不代表可以无节制使用，通过合理的设计文档模型，可以规避绝大部分使用事物的必要性，事物=锁，节点协调，额外开销，性能影响
+
+**mongodb ACID的支持:**
+
+- Atomocity：原子性
+  - 单表单文档：1.x就支持，
+  - 复制集多表多行：4.0复制集
+  - 分片集群多表多行：4.2
+- Consistency：一致性
+  - writeConcern
+  - readConcern(3.2)
+- Isolation：隔离性
+  - readConcern（3.2）
+- Durability：持久性
+  - journal and replication
+
+**事物隔离级别**：
+
+- 事物完成前，事物外的操作对该事物所做的修改不可访问
+- 如果事物内使用{readConcern:"snapshot"}，则可以达到可重复读，repeatable read
+
+![image-20240603161320845](./assets/image-20240603161320845.png)
+
+
+
+![image-20240603161519600](./assets/image-20240603161519600.png)
+
+**事物写机制:**
+
+mongodb的事物错误处理机制不同于关系数据库
+
+- 当一个事物开始后，如果事物要修改的文档在事物外部被修改过，则事物修改这个文档会出发Abort错误，因为此时的修改冲突了
+- 这种情况，只需要简单的重做事物就可以了
+- 如果一个事物已经开始修改一个文档，在事物以外尝试修改同一个文档，则事物以外的修改会等待事物完成才能继续
+
+**注意事项:**
+
+- 可以实现和关系型数据库类似的事物场景
+- 必须使用mongodb4.2兼容的驱动
+- 事物默认必须在60（可调整）内完成，否则将被取消
+- 设计师无的分片不能使用仲裁节点
+- 事物会影响chunk迁移效率，正在迁移的chunk也可能造成事物提交失败（重试即可）
+- 多文档事物中的读操作必须使用主节点读
+- readConcern只应该在事物级别设置，不能设置在每次读写操作上
+
+## Change Stream
+
+change Stream 是mongodb用于实现变更追踪的解决方案，类似于关系数据库的触发器，但原理不完全相同
+
+![image-20240603162428734](./assets/image-20240603162428734.png)
+
+**实现原理：**
+
+change strean 是基于oplog实现的，在oplog上开启一个tailable cursor来追踪所有复制集上的变更操作，最终调用应用中定义的回调函数。被追踪的变更事件主要包括：
+
+- insert/update/delete：插入、更新、删除
+- drop：集合被删除
+- rename：集合被重命名
+- dropDatabase：数据库被删除
+- invaliate：drop/rename/dropDatabase将导致invalidate被触发，并关闭change stream
+
+![image-20240603162720153](./assets/image-20240603162720153.png)
+
+**change strean 与可重复读：**
+
+值推送已经在大多数节点上提交的变更操作，即可重复读的变更，这个验证是通过readConcern：majority实现的，因此：
+
+- 未开启majority readConcern的集群无法使用change Stream
+- 集群无法满足w：majority时，不会出发change stream（例如PSA架构中S因故宕机）
+
+**变更过滤：**
+
+如果只对某些类型的变更事件感兴趣，可以使用聚合管道的过滤步骤过滤事件：
+
+![image-20240603163124999](./assets/image-20240603163124999.png)
+
+**示例：**
+
+![image-20240603163144616](./assets/image-20240603163144616.png)
+
+**故障恢复：**
+
+![image-20240603163243783](./assets/image-20240603163243783.png)
+
+![image-20240603163321285](./assets/image-20240603163321285.png)
+
+**使用场景：**
+
+- 跨集群的变更复制：在源集群中订阅Change Stream
+- 微服务联动：一个微服务变更数据库时，其他微服务得到通知并作出相应的变更
+- 其他任何需要系统联动的场景
+
+**注意事项:**
+
+- change steram 依赖于oplog，因此终端事件不可超过oplog回收的最大时间窗
+- 执行update时，如果只更新了部分数据，change stream 通知的也是增量部分
+- 同理，删除数据时通知的仅是删除的数据的_id
