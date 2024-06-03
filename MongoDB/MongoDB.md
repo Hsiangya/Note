@@ -326,3 +326,155 @@ mongodb复制集的主要意义在于实现服务高可用，它的现实依赖�
 - 增加节点不会增加系统写性能
 
   > 读写分离可以分流读的性能，无法增加写的性能
+
+## 集群配置
+
+此处案例采用1物理机主节点，2docker容器副本节点
+
+**启动mongodb:**
+
+```bash
+# 创建副本节点需要挂在的目录,不要放在个人home目录下，mongo启动的时候使用的是mongo用户
+mkdir -p /opt/cluster/mongoone/data /opt/cluster/mongoone/config
+mkdir -p /opt/cluster/mongotwo/data /opt/cluster/mongotwo/config
+
+# 创建keyFIle
+sudo openssl rand -base64 756 > /opt/cluster/mongodb-keyfile
+cp /opt/cluster/mongodb-keyfile /opt/cluster/mongoone/config
+cp /opt/cluster/mongodb-keyfile /opt/cluster/mongotwo/config
+
+
+# 设置权限
+sudo chmod 400 /opt/cluster/mongodb-keyfile
+sudo chmod 400 /opt/cluster/mongoone/config/mongodb-keyfile
+sudo chmod 400 /opt/cluster/mongotwo/config/mongodb-keyfile
+# 999:999 是 mongodb 用户的 UID 和 GID
+sudo chown mongodb:mongodb /opt/cluster/mongodb-keyfile
+sudo chown 999:999 /opt/cluster/mongoone/config/mongodb-keyfile
+sudo chown 999:999 /opt/cluster/mongotwo/config/mongodb-keyfile
+
+
+# 修改配置文件
+security:
+  authorization: enabled
+  keyFile: /opt/cluster/mongodb-keyfile
+replication:
+  replSetName: "rs0"
+   
+# 重启物理机节点
+sudo systemctl restart mongod
+
+# 复制配置文件
+cp /etc/mongod.conf /opt/cluster/mongoone/config
+cp /etc/mongod.conf /opt/cluster/mongotwo/config
+
+# 编写docker-compose.yml文件
+version: '3.8'
+services:
+  mongo1:
+    image: mongo:latest
+    container_name: mongo1
+    network_mode: "host"
+    volumes:
+      - /opt/cluster/mongoone/data:/data/db
+      - /opt/cluster/mongoone/config/mongod.conf:/etc/mongod.conf
+      - /opt/cluster/mongoone/config/mongodb-keyfile:/etc/mongodb-keyfile
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    command: mongod --config /etc/mongod.conf --replSet rs0 --port 27018
+    restart: unless-stopped
+
+  mongo2:
+    image: mongo:latest
+    container_name: mongo2
+    network_mode: "host"
+    volumes:
+      - /opt/cluster/mongotwo/data:/data/db
+      - /opt/cluster/mongotwo/config/mongod.conf:/etc/mongod.conf
+      - /opt/cluster/mongotwo/config/mongodb-keyfile:/etc/mongodb-keyfile
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    command: mongod --config /etc/mongod.conf --replSet rs0 --port 27019
+    restart: unless-stopped
+
+# 运行docker compose 
+sudo docker compose up -d
+
+# 检查运行情况
+sudo docker ps -a
+
+# 测试启动单节点（测试用）
+sudo docker run -d \
+  -p 27018:27017 \
+  -v /opt/cluster/mongoone/data:/data/db \
+  -v /opt/cluster/mongoone/config/mongod.conf:/etc/mongod.conf \
+  -v /opt/cluster/mongoone/config/mongodb-keyfile:/etc/mongodb-keyfile  \
+  mongo:latest \
+  mongod --config /etc/mongod.conf
+
+sudo docker run -d \
+  -p 27019:27017 \
+  -v /opt/cluster/mongotwo/data:/data/db \
+  -v /opt/cluster/mongotwo/config/mongod.conf:/etc/mongod.conf \
+  -v /opt/cluster/mongotwo/config/mongodb-keyfile:/etc/mongodb-keyfile \
+  mongo:latest \
+  mongod --config /etc/mongod.conf
+```
+
+**配置复制集：**
+
+- 方法1：此方式hostname需要能被解析
+
+  ```bash
+  
+  # 确认是否可以解析
+  hostname -f
+  # 进入mongosh
+  mongosh --port 27017 -u "username" -p "password" --authenticationDatabase "admin"
+  mongosh --port 27018 -u "admin" -p "password" --authenticationDatabase "admin"
+  
+  rs.initiate()
+  # rs.add("HOSTNAME:PORT")
+  rs.add("localhost:27018")
+  rs.add("localhost:27019")
+  ```
+
+  
+
+- 方法2：
+
+```bash
+# 进入mongosh
+mongosh --port 27017 -u "username" -p "password" --authenticationDatabase "admin"
+
+# 配置复制集
+rs.initiate({
+	_id:"rs0",
+	members:[{
+	_id:0,
+	host:"192.168.1.7:27017"
+	},{
+	_id:1,
+	host:"192.168.1.7:27018"
+	},{
+	_id:2,
+	host:"192.168.1.7:27019"
+	}]
+})
+```
+
+**允许从节点读**:
+
+```bash
+rs.slaveOk()
+```
+
+**注意事项:**
+
+- 所有的写操作默认只能在主节点上进行
+- 只允许主节点接受写操作以保证数据的一致性
+- 默认情况在主节点上进行读取，可以确保读取到最新的数据
+- 可以配置从从节点读取数据
+- 主节点故障，会自动选举一个新节点，过程中短暂无法写入
