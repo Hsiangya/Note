@@ -30,23 +30,24 @@ show databases;
 select user,authentication_string,host from  mysql.user;
 
 -- 创建用户与密码
-create user hsiangya@127.0.0.1 identified by 'xy159951';
+create user username@127.0.0.1 identified by 'password';
+
 -- 创建用户
-drop user hsiangya@127.0.0.1;
+drop user username@127.0.0.1;
 
 -- 百分号为可以匹配任意值
-create user hsiangya@'127.0.0.%' identified by 'root123';
-drop user hsiangya@'127.0.0.%';
+create user username@'127.0.0.%' identified by 'password';
+drop user username@'127.0.0.%';
 
 -- 任意ip地址可以访问
-create user hsiangya@'%' identified by 'xy159951';
+create user username@'%' identified by 'password';
 
 -- 删除用户
-drop user hsiangya@'%';
+drop user username@'%';
 
 -- 特殊字符需要加''，没有特殊字符可以不加
-create user 'hsiangya'@'%' identified by 'root123';
-drop user 'hsiangya'@'%';
+create user 'username'@'%' identified by 'root123';
+drop user 'username'@'%';
 ```
 
 ### 修改用户
@@ -56,12 +57,12 @@ drop user 'hsiangya'@'%';
 rename user '用户名'@'IP地址' to '新用户名'@'IP地址';
 
 -- 修改用户
-rename user hsiangya@127.0.0.1 to hsiangya@localhost;
-rename user 'hsiangya'@'127.0.0.1' to 'hsiangya'@'localhost';
+rename user username@127.0.0.1 to username@localhost;
+rename user 'username'@'127.0.0.1' to 'username'@'localhost';
 
 -- 修改密码
 set password for '用户名'@'IP地址' = Password('新密码')；
-set password for 'hsiangya'@'%' = Password('123123');
+set password for 'username'@'%' = Password('123123');
 ```
 
 ### 授权
@@ -71,22 +72,22 @@ set password for 'hsiangya'@'%' = Password('123123');
 grant 权限 on 数据库.表 to '用户'@'IP地址';
 
 -- 授予所有权限
-grant all privileges on *.* TO 'hsiangya'@'%'; 
+grant all privileges on *.* TO 'username'@'%'; 
 
 -- 授予指定数据库的所有权限
-grant all privileges on 数据库.* TO 'hsiangya'@'localhost';
+grant all privileges on 数据库.* TO 'username'@'localhost';
 
 -- 授予指定数据表的所有权限
-grant all privileges on 数据库.表 TO 'hsiangya'@'localhost'; 
+grant all privileges on 数据库.表 TO 'username'@'localhost'; 
 
 -- 授予指定标的查询权限
-grant select on 数据库.表 TO 'hsiangya'@'localhost';         
+grant select on 数据库.表 TO 'username'@'localhost';         
 
 -- 授予指定标的查询与插入权限
-grant select,insert on 数据库.表 TO 'hsiangya'@'localhost'; 
+grant select,insert on 数据库.表 TO 'username'@'localhost'; 
 
 -- 授予指定库所有权限，任意IP地址
-grant all privileges on 数据库.* to 'hsiangya'@'%';
+grant all privileges on 数据库.* to 'username'@'%';
 
 -- 将数据读取到内存中，从而立即生效。
 flush privileges;   
@@ -97,7 +98,7 @@ flush privileges;
 **不推荐在docker中使用Mysql**
 
 ```bash
-docker run -d -p 3306:3306 --privileged=true -v /ubuntu/mysql/log/mysql:/var/log/mysql -v /ubuntu/mysql/data:/var/lib/mysql -v /ubuntu/mysql/conf:/etc/mysql/conf.d -e MYSQL_ROOT_PASSWORD=xy159951 --name mysql1 mysql
+docker run -d -p 3306:3306 --privileged=true -v /ubuntu/mysql/log/mysql:/var/log/mysql -v /ubuntu/mysql/data:/var/lib/mysql -v /ubuntu/mysql/conf:/etc/mysql/conf.d -e MYSQL_ROOT_PASSWORD=password --name mysql1 mysql
 ```
 
 ![image-20230419103232685](./assets/image-20230419103232685.png)
@@ -894,8 +895,6 @@ mysqldump -u root 数据库名>备份文件名;   #备份整个数据库
 
 mysqldump -u root 数据库名 表名字>备份文件名;  #备份整个表
 
-
-
 ```
 
 > mysqldump 是一个备份工具，因此该命令是在终端中执行的，而不是在 mysql 交互环境下
@@ -1003,10 +1002,10 @@ SHOW TABLES;           #查看test数据库的表
 - 聚簇索引数据最大限度提高了I/O密集型应用的性能，但如果数据全部放在内存中，则访问的顺序就没那么虫咬了，聚簇索引也就没什么优势了。
 - 插入速度严重依赖插入顺序，按照主键的吮乳插入行是最快的方式。
 - 更新聚簇索引列的代价很高，会强制每个被更新的行移动到新的位置
-- 基于聚簇索引的表在插入新行，或者主键被更新导致需要移动行的时候，可能棉铃页分裂的问题
+- 基于聚簇索引的表在插入新行，或者主键被更新导致需要移动行的时候，可能面临页分裂的问题
 - 聚簇索引可能导致全表扫描变慢，尤其是行比较系数，或由于页分页导致数据存储不连续的时候
 - 二级索引比想象中的要更大，因为叶子节点引用了行的主键列
-- 耳机索引需要两次索引查找，而不是一次
+- 二级索引需要两次索引查找，而不是一次
 
 对于InnoDB,自适应哈希索引能够减少二次索引这样的重复工作，是数据库自动执行的。
 
@@ -1182,7 +1181,7 @@ B树索引可能会产生碎片化，这回降低查询的效率。碎片化的�
 
 # 调优
 
-## 核心理念
+## `核心理念
 
 - 选择合适的引擎
 - 平衡范式与冗余：为提高效率可以牺牲范式设计，冗余数据
@@ -1399,6 +1398,167 @@ B树索引可能会产生碎片化，这回降低查询的效率。碎片化的�
 ![可重复读](./assets/可重复读.png)
 
 - 所有的Undo日志也都会写入redo日志，undo日志是写入时服务器崩溃恢复过程中的一部分
+
+# 复制
+
+## 复制概述
+
+ 复制解决的基本问题是让一台服务器的数据与其他服务器保持同步：
+
+- 任何数据修改或数据结构变更的事件（event）都会被写入日志文件
+- 副本服务器从源服务器上读取日志文件并在本地重放执行
+- 过程是异步的，并不能保证副本服务器上的数据是最新的
+- 复制延迟没有上线
+- mysql复制基本上是向后兼容的，新版本的服务器可以作为老版本服务器的副本，老版本服务器为新版本服务器做副本通常不可行
+
+通过复制可以将读操作指向副本来获得更好的读扩展性，除非涉及的当，否则并不是和通过复制来扩展写操作，一主多从的架构中，写操作会被执行多次，这时候系统的性能取决于最慢的那部分
+
+复制有三个步骤：
+
+1. 源端把数据记录到二进制日志中，称之为二进制事件（binarg log events）
+2. 副本将源上的日志复制到自己的日志中继中
+3. 副本读取中继日志中的事件，将其重放到副本数据之上
+4. 读取和日志重放是解藕的，允许读取日志与重放日志异步进行，I/O线程和SQL线程都是可以独立运行的
+
+![image-20240603201439591](./assets/image-20240603201439591.png)
+
+## 复制原理
+
+### 复制格式
+
+mysql提供三种不同的二进制日志格式用于复制：
+
+- 基于语句
+- 基于行
+- 混合模式
+
+**基于语句:**
+
+通过记录所有在源端执行的数据变更语句来实现：
+
+- 从中继日志执行源副本执行过的SQL语句
+- 优点简单且紧凑，一条更新了大量数据的SQL语句，只需要几十字节存储
+- 弊端是具有不确定性，如果删除1000条数据，没有使用order by，删除的数据会不同，将导致数据不一致
+
+**基于行:**
+
+将事件写入二进制日志，该事件包含了该行记录发生了什么变化：
+
+- 每条被改变的记录都会作为事件被写入二进制日志，可能会让二进制日志的大小发生巨大的增长
+
+**混合模式:**
+
+试图结合以上两种方式的优点：
+
+- 事件的写入，默认使用基于语句，仅在需要时才切换到基于行
+- 写入每个事件时会有许多的判断条件，确定使用哪种格式
+- 会导致二进制日志中出现不可预测的事件
+
+## 搭建主从复制
+
+案例采用1物理机+2容器
+
+```bash
+# 创建复制节点用户名与密码
+CREATE USER 'username'@'%' IDENTIFIED BY 'password';
+GRANT REPLICATION SLAVE ON *.* TO 'username'@'%';
+FLUSH PRIVILEGES;
+
+# 修改主节点配置
+[mysqld]
+server-id               = 1
+log_bin                 = /var/log/mysql/mysql-bin.log
+binlog_do_db            = mydatabase  # 可选，只复制指定的数据库
+expire_logs_days        = 10          # 可选，自动清理旧的二进制日志
+max_binlog_size         = 100M        # 可选，设置二进制日志的最大大小
+
+# 重启服务
+sudo systemctl restart mysql
+
+# 创建数据卷目录
+sudo mkdir /opt/cluster/mysql/mysqlone/data
+sudo mkdir /opt/cluster/mysql/mysqltwo/data
+sudo mkdir /opt/cluster/mysql/mysqlone/config
+sudo mkdir /opt/cluster/mysql/mysqltwo/config
+
+# 编辑从节点 my.cnf配置
+sudo vim /opt/cluster/mysql/mysqlone/congig/my.cnf
+[mysqld]
+bind-address = 0.0.0.0
+server-id = 1
+log_bin = /var/log/mysql/mysql-bin.log
+relay_log = /var/log/mysql/mysql-relay-bin.log
+
+# 编写docker compose文件
+version: '3.8'
+
+services:
+  mysql-slave1:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: xy159951
+      MYSQL_REPLICATION_USER: username
+      MYSQL_REPLICATION_PASSWORD: password
+    volumes:
+      - /opt/cluster/mysql/mysqlone/data:/var/lib/mysql
+      - /opt/cluster/mysql/mysqlone/logs:/var/log/mysql
+    network_mode: host
+    command: >
+      sh -c "
+      mkdir -p /var/log/mysql &&
+      chown -R mysql:mysql /var/log/mysql &&
+      chmod 770 /var/log/mysql &&
+      /usr/sbin/mysqld --user=mysql --console --port=3306 --bind-address=0.0.0.0 --server-id=1
+      --log-bin=/var/log/mysql/mysql-bin.log --relay-log=/var/log/mysql/mysql-relay-bin.log
+      --read-only=1 --skip-slave-start
+      "
+
+  mysql-slave2:
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: xy159951
+      MYSQL_REPLICATION_USER: username
+      MYSQL_REPLICATION_PASSWORD: password
+    volumes:
+      - /opt/cluster/mysql/mysqltwo/data:/var/lib/mysql
+      - /opt/cluster/mysql/mysqltwo/logs:/var/log/mysql
+    network_mode: host
+    command: >
+      sh -c "
+      mkdir -p /var/log/mysql &&
+      chown -R mysql:mysql /var/log/mysql &&
+      chmod 770 /var/log/mysql &&
+      /usr/sbin/mysqld --user=mysql --console --port=3306 --bind-address=0.0.0.0 --server-id=2
+      --log-bin=/var/log/mysql/mysql-bin.log --relay-log=/var/log/mysql/mysql-relay-bin.log
+      --read-only=1 --skip-slave-start
+      "
+
+# 启动从节点
+sudo docker compose up -d
+
+# 进入主节点查看状态
+SHOW MASTER STATUS;
+
+# 进入从节点
+mysql -h 127.0.0.1 -P 3307 -u username -p
+
+# 配置从节点MASTER_LOG_POS填刚才主节点show master status中的为止
+CHANGE MASTER TO
+    MASTER_HOST='192.168.1.7',
+    MASTER_PORT=3306,
+    MASTER_USER='username',
+    MASTER_PASSWORD='password',
+    MASTER_LOG_FILE='mysql-bin.000001',
+    MASTER_LOG_POS=157;
+    
+# 启动复制
+START SLAVE;
+
+# 查看复制状态
+SHOW SLAVE STATUS\G;
+```
+
+
 
 # 日志文件
 
