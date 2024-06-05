@@ -1222,3 +1222,161 @@ repl_backlog_buffer 最小的大小可以根据这面这个公式估算`second*w
 - second 为从服务器断线后重新连接上主服务器所需的平均 时间(以秒计算)。
 - write_size_per_second 则是主服务器平均每秒产生的写命令数据量大小。
 -  repl_backlog_buffer 大小修改的方法，只需要修改配置文件里下面这个参数项的值就可以。`repl-backlog-size 1mb`
+
+# 集群
+
+## 搭建集群
+
+本案例采用三主三从集群，docker容器搭建：
+
+- docker compose
+
+```bash
+version: '3.9'
+services:
+  redis-node-1:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node1/data:/data
+      - /opt/cluster/redis/node1/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+  redis-node-2:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node2/data:/data
+      - /opt/cluster/redis/node2/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+  redis-node-3:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node3/data:/data
+      - /opt/cluster/redis/node3/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+  redis-node-4:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node4/data:/data
+      - /opt/cluster/redis/node4/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+  redis-node-5:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node5/data:/data
+      - /opt/cluster/redis/node5/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+  redis-node-6:
+    image: redis:7.0.15-alpine3.20
+    volumes:
+      - /opt/cluster/redis/node6/data:/data
+      - /opt/cluster/redis/node6/config/redis.conf:/usr/local/etc/redis/redis.conf
+    network_mode: "host"
+    mem_limit: 3g
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always
+
+```
+
+- 配置文件
+
+```bash
+# Redis 主节点配置文件示例 (redis-master.conf)
+
+
+# 服务端口
+port 1379
+
+# 绑定到具体的 IP 地址
+bind 0.0.0.0
+
+# 指定数据文件存储位置，这里的路径应与 Docker Compose 文件中的卷映射路径一致
+dir /data
+
+# 开启 AOF 持久化，记录每次写操作，重启时通过重放来恢复数据
+appendonly yes
+
+# AOF 文件的同步频率
+appendfsync everysec
+
+# 开启 RDB 持久化，按照指定的时间间隔进行快照存储
+save 900 1
+save 300 10
+save 60 10000
+
+# RDB 文件压缩和校验
+rdbcompression yes
+rdbchecksum yes
+
+# 设置密码，提高安全性
+requirepass password
+
+
+# 日志级别和日志文件位置
+loglevel notice
+logfile /data/redis.log
+
+# 设置最大内存使用量，超出后将根据 maxmemory-policy 来处理多余的数据
+maxmemory 2gb
+maxmemory-policy volatile-lru
+
+# 数据库数量，默认为 16
+databases 16
+
+# 安全设置，防止意外的 FLUSHDB、FLUSHALL 命令
+rename-command FLUSHDB ""
+rename-command FLUSHALL ""
+
+# 开启集群模式
+cluster-enabled yes
+cluster-config-file /data/nodes.conf
+cluster-node-timeout 5000
+masterauth password
+
+# 公告配置
+cluster-announce-ip 127.0.0.1
+cluster-announce-port 1379
+cluster-announce-bus-port 11379                                                                                                          
+```
+
+- 启动
+
+```bash
+# 启动实例
+docker compose up -d
+
+# 初始化集群
+redis-cli --cluster create 127.0.0.1:1379 127.0.0.1:1380 127.0.0.1:1381 127.0.0.1:2379 127.0.0.1:2380 127.0.0.1:2381 --cluster-replicas 1 -a password
+
+# 查看集群信息
+redis-cli -p 1379 -a password cluster info
+
+# 查看集群节点
+redis-cli -p 1379 -a password cluster nodes
+
+# 查看哪些槽处于失败状态
+redis-cli -p 1380 -a password cluster slots
+
+# 强制将从节点转移成主节点
+redis-cli -p 2380 -a password cluster failover force
+
+```
+
