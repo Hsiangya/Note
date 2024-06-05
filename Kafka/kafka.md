@@ -481,7 +481,7 @@ retentionSize可以通过broker端参数log.retention.bytes来配置，默认值
 
 **基于日志起始偏移量：**
 
-一般情况下，日志文件的起始偏移量 logStartOffset 等于第一个日志分段的 baseOffset，但这并不是绝对的，logStartOffset 的值可以通过 DeleteRecordsRequest 请求（比如使用KafkaAdminClient的deleteRecords（）方法、使用kafka-delete-records.sh脚本，具体用法参考9.1.3节）、日志的清理和截断等操作进行修改。
+一般情况下，日志文件的起始偏移量 logStartOffset 等于第一个日志分段的 baseOffset，但这并不是绝对的，logStartOffset 的值可以通过 DeleteRecordsRequest 请求、日志的清理和截断等操作进行修改。
 
 基于日志起始偏移量的保留策略的判断依据是某日志分段的下一个日志分段的起始偏移量baseOffset 是否小于等于logStartOffset，若是，则可以删除此日志分段。
 
