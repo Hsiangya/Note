@@ -568,3 +568,37 @@ Linux系统会使用磁盘的一部分作为swap分区，这样可以进行进�
 - 采用了零拷贝技术，那么应用程序可以直接请求内核把磁盘中的数据传输给 Socket
 - 零拷贝技术通过DMA（Direct Memory Access）技术将文件内容复制到内核模式下的Read Buffer 中。
 
+# 可靠性
+
+## 事物生产者
+
+kafka对Producer和Consumer要处理的消息提供的承诺：
+
+-  最多一次：消息可能会丢失，但绝不会被重复发送
+- 至少一次（默认）：消息不会丢失，但可能重复发送
+- 精确一次：消息不会丢失，也不会重复发送
+
+**幂等性：**
+
+执行1次和执行n次得到的结果都是不变的：
+
+- 可以安全地重拾任何幂等希操作
+- prodicer默认不是幂等性的
+- enable.idempotence 被设置成 true 后，Producer 自动升级成幂等性 Producer
+
+幂等性 Producer 的作用范围：
+
+- 能够保证某个主题的一个分区不出现重复消息，无法实现多个分区的幂等性
+- 只能实现单会话上的幂等性，不能实现跨会话的幂等性，重启producer进程，幂等性就消失了
+
+事物型produce：能保证多条消息原子性的写入到目标分区，这批消息要么全部写入成功，要么全部失败，事物型producer不惧进程的重启，重启回来后，kafka任然保证他们发送消息的精确一次处理
+
+设置事物型Producer的方法：
+
+- 开启enable.idempotence = true
+- 设置 Producer 端参数 transctional. id。最好为其设置一个有意义的名字。
+
+和普通Producer代码相比，事物型Producer的显著特点是调用了一些事物API，如initTransaction、beginTransaction、commitTransaction 和 abortTransaction，它们分别对应事务的初始化、事务开始、事务提交以及事务终止。
+
+1. read_uncommitted：这是默认值，表明 Consumer 能够读取到 Kafka 写入的任何消息，不论事务型 Producer 提交事务还是终止事务，其写入的消息都可以读取。很显然，如果你用了事务型 Producer，那么对应的 Consumer 就不要使用这个值。
+2. read_committed：表明 Consumer 只会读取事务型 Producer 成功提交事务写入的消息。当然了，它也能看到非事务型 Producer 写入的所有消息。
