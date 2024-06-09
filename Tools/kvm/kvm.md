@@ -82,5 +82,16 @@ sudo ip link set enp0s25 down
 sudo ip link set up enp0s25 #重启物理网卡
 ```
 
+- 设置开机自启
+
+```bash
+# 设置虚拟机自启
+sudo virsh autostart <name>
+sudo virsh list --all --autostart
+
+
+
+```
+
 
 

@@ -58,5 +58,20 @@ multipass mount ~/kubernetes/master master:~/master
 multipass shell systemname
 ```
 
+## 安装k8s集群环境
 
+- 安装multipass
+
+```bash
+# 创建虚拟机
+# multipass launch --name master --cpus 2 --memory 12G --disk 100G
+multipass launch --name slave1 --cpus 2 --memory 12G --disk 100G
+multipass launch --name slave2 --cpus 2 --memory 12G --disk 100G
+```
+
+
+
+
+
+- 安装k3s
 
