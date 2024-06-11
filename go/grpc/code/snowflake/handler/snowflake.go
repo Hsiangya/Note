@@ -2,8 +2,11 @@ package handler
 
 import (
 	"context"
-	"errors"
+	"github.com/alibaba/sentinel-golang/api"
+	"github.com/alibaba/sentinel-golang/core/base"
 	"github.com/bwmarrin/snowflake"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"snowflake/dao/config"
 	"snowflake/proto"
 	"time"
@@ -14,9 +17,14 @@ type SnowFlakeSrv struct {
 }
 
 func (s SnowFlakeSrv) GetId(ctx context.Context, n *proto.Num) (*proto.Ids, error) {
+	e, b := api.Entry(config.Conf.Name, api.WithTrafficType(base.Inbound))
+	if b != nil {
+		return nil, status.Errorf(codes.ResourceExhausted, "Request blocked by Sentinel: %v", b.Error())
+	}
+	defer e.Exit()
 
 	if n.Num < 1 {
-		return nil, errors.New("生成的ID个数必须大于0")
+		return nil, status.Errorf(codes.InvalidArgument, "生成的ID个数必须大于0")
 	}
 
 	snowflake.Epoch = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano() / 1000000

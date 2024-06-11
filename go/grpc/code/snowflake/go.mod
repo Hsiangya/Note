@@ -17,6 +17,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/alibaba/sentinel-golang v1.0.4 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/fatih/color v1.14.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
