@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package proto;
+option go_package = ".;proto";
+
+import "google/api/annotations.proto";
+
+service SnowFlake {
+    rpc GetId (Num) returns (Ids) {
+        option (google.api.http) = {
+            get: "/v1/id",
+        };
+    }
+}
+
+// 需要获取几个ID
+message Num{
+    int64 Num = 1;
+}
+
+// ID
+message OrderId {
+    int64 Id = 1;
+}
+
+message Ids {
+    repeated OrderId Id = 1;
+}

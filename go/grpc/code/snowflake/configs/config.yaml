@@ -1,0 +1,15 @@
+name: "snowflake_srv"
+mode: "dev"
+ip: "127.0.0.1"
+port: 9001
+version: "v0.0.1"
+machine_id: 1
+api_port: 9002
+log:
+  level: "debug"
+  filename: "goods_srv.log"
+  max_size: 200
+  max_age: 30
+  max_backups: 7
+consul:
+  addr: "127.0.0.1:8500"
