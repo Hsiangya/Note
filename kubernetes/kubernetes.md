@@ -1,4 +1,4 @@
-# sudo journalctl -u kubelet -n 100 --no-pager简介
+# 简介
 
 ## 组件
 
@@ -386,21 +386,11 @@ sudo kubeadm init \
 --service-cidr=10.96.0.0/12 \
 --pod-network-cidr=192.168.0.0/16 
 
-sudo kubeadm init \
---apiserver-advertise-address=116.198.217.180 \
---image-repository registry.aliyuncs.com/google_containers \
---kubernetes-version v1.29.3 \
---service-cidr=10.96.0.0/12 \
---pod-network-cidr=192.168.0.0/16 
-
 # 根据输出信息执行对应指令
 sudo mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
-# 根据输出信息执行对应指令将从节点加入主节点
-kubeadm join 192.168.1.7:6443 --token l6s3dm.0ndg4vs7x5m85ovw \
-	--discovery-token-ca-cert-hash sha256:cfafc4ef737b6931d596c9912faad7bf9580bcd350cbef57e5d7ab6c7131cd87 
 ```
 
 ### 网络插件
@@ -417,158 +407,238 @@ watch kubectl get pods -n calico-system
 kubectl get node -o wide
 ```
 
-```bash
-Your Kubernetes control-plane has initialized successfully!
+## kubectl命令
 
-To start using your cluster, you need to run the following as a regular user:
+- 从节点本质是通过访问API server来控制，`~/.kube/config`中保留了配置文件
 
-  mkdir -p $HOME/.kube
-  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+- 在任意节点使用kubectl：
 
-Alternatively, if you are the root user, you can run:
+  - 将master节点中 `/etc/kubernetes/admin.conf`拷贝到需要运行的服务器的`/etc/kubernetes`目录中
+  - 在对应的服务器上配置环境变量：`echo “export KUBECONFIG=/etc/kubernetes/admin.conf" >> ~/.bash_profile`,然后激活环境`source ~/.bash_profile`
 
-  export KUBECONFIG=/etc/kubernetes/admin.conf
+  **命令：**
 
-You should now deploy a pod network to the cluster.
-Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
-  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+  - create：创建某个资源
+  - get：获取某个资源的信息
+  - run：运行一个资源
+  - expose：暴露资源的信息
+  - delete：删除资源
 
-Then you can join any number of worker nodes by running the following on each as root:
+  - apply：应用或更新资源配置
+  - annotate：资源添加或修改注释，注释是用于存储额外信息的键值对
+  - autoscale：设置自动扩缩容规则
+  - debug：提供一种方式来调试集群中的容器
+  - diff：显示本地配置文件与集群当前状态之间的差异
+  - edit：直接编辑kubernetes集群中的资源配置
+  - kustomize：使用kustomize管理kubernetes资源的工具
+  - label：添加或修改kubernetes资源的标签
+  - patch：对kubernetes资源进行部分更新
+  - replace：替换资源的当前规格
+  - rollout：管理资源的部署过程，如回滚之前版本或查看部署状态
+  - scale：手动调整服务或部署的副本数量，增减Pod数量
+  - set：修改特定资源的特定配置，如环境变量或容器的镜像
+  - wait：等待特定的kubernetes资源达到某个状态
 
-kubeadm join 198.13.42.52:6443 --token 985810.tz905wcz5hvdxmwh \
-	--discovery-token-ca-cert-hash sha256:d97ab8d3009cc56032d1bfaff1c5a7e8f1f620cb15de6ae341f7565baa0087a7 
+  **资源别名：**
 
-```
+  pods：pod
 
-```bash
-deb http://archive.ubuntu.com/ubuntu jammy main restricted
-# deb-src http://archive.ubuntu.com/ubuntu jammy main restricted
+  deployments：deploy
 
-deb http://ubuntu.mirror.constant.com jammy main restricted
-# deb-src http://ubuntu.mirror.constant.com jammy main restricted
+  services：svc
 
-deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted
-# deb-src http://archive.ubuntu.com/ubuntu jammy-updates main restricted
+  namespace：ns
 
-deb http://ubuntu.mirror.constant.com jammy-updates main restricted
-# deb-src http://ubuntu.mirror.constant.com jammy-updates main restricted
-
-deb http://archive.ubuntu.com/ubuntu jammy universe
-# deb-src http://archive.ubuntu.com/ubuntu jammy universe
-deb http://archive.ubuntu.com/ubuntu jammy-updates universe
-# deb-src http://archive.ubuntu.com/ubuntu jammy-updates universe
-
-deb http://ubuntu.mirror.constant.com jammy universe
-# deb-src http://ubuntu.mirror.constant.com jammy universe
-deb http://ubuntu.mirror.constant.com jammy-updates universe
-# deb-src http://ubuntu.mirror.constant.com jammy-updates universe
-
-deb http://archive.ubuntu.com/ubuntu jammy multiverse
-# deb-src http://archive.ubuntu.com/ubuntu jammy multiverse
-deb http://archive.ubuntu.com/ubuntu jammy-updates multiverse
-# deb-src http://archive.ubuntu.com/ubuntu jammy-updates multiverse
-
-deb http://ubuntu.mirror.constant.com jammy multiverse
-# deb-src http://ubuntu.mirror.constant.com jammy multiverse
-deb http://ubuntu.mirror.constant.com jammy-updates multiverse
-# deb-src http://ubuntu.mirror.constant.com jammy-updates multiverse
-
-deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-# deb-src http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
-
-deb http://ubuntu.mirror.constant.com jammy-backports main restricted universe multiverse
-# deb-src http://ubuntu.mirror.constant.com jammy-backports main restricted universe multiverse
-
-deb http://archive.ubuntu.com/ubuntu jammy-security main restricted
-# deb-src http://archive.ubuntu.com/ubuntu jammy-security main restricted
-deb http://archive.ubuntu.com/ubuntu jammy-security universe
-# deb-src http://archive.ubuntu.com/ubuntu jammy-security universe
-deb http://archive.ubuntu.com/ubuntu jammy-security multiverse
-# deb-src http://archive.ubuntu.com/ubuntu jammy-security multiverse
-
-deb http://ubuntu.mirror.constant.com jammy-security main restricted
-# deb-src http://ubuntu.mirror.constant.com jammy-security main restricted
-deb http://ubuntu.mirror.constant.com jammy-security universe
-# deb-src http://ubuntu.mirror.constant.com jammy-security universe
-deb http://ubuntu.mirror.constant.com jammy-security multiverse
-# deb-src http://ubuntu.mirror.constant.com jammy-security multiverse
-
-```
-
-### 基于阿里云
-
-前置准备
+  nodes：no
 
 ```bash
-# 每台机器都关闭空间交换
-sudo swapoff -a
-
-# 关闭SElinux
-sudo apt-get install policycoreutils
-sudo setenforce 0
-sudo setenforce 1
-sestatus
-sed -ri 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
-
-# 关闭swap，找到包含swap的行 注释掉
-sudo vim /etc/fstab
+kubectl get no # 获取节点信息
+kubectl get pod # 获取pod信息类表
+kubectl get ns # 获取命名空间
+kubectl get deploy 
 ```
 
+## API概述
 
+类型：
+
+- Alpha：默认情况会禁用，可能有bug，尝鲜
+- Beta：做过完善的测试，基本上没问题，不会被删除，命名方式`v2beta3`
+- Stable：主要使用的版本，稳定版,命名方式`vX`
+
+访问控制：
+
+- 认证： 
+- 授权：
+
+# Pod
 
 ```bash
-# 设置主机名
-sudo hostnamectl set-hostname <hostname>
-# 在master 添加hosts
-sudo cat >> /etc/hosts <<EOF
-192.168.1.7 master
-192.168.1.101 node1
-192.168.1.102 node2
-192.168.1.104 node4
-EOF
-
-# 时间同步1. 
-sudo apt-get update
-sudo apt-get install ntpdate
-sudo ntpdate time.windows.com
-# 同步时间2. 阿里云
-sudo apt install ntp
-sudo vim /etc/ntp.conf
-server ntp1.aliyun.com iburst
-server ntp2.aliyun.com iburst
-server ntp3.aliyun.com iburst
-server ntp4.aliyun.com iburst
-sudo systemctl enable ntp
-sudo systemctl start ntp
-ntpdate -u ntp1.aliyun.com
-.
-# 内核ip转发
-cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-net.ipv4.ip_forward                 = 1
-vm.swappiness = 0
-EOF
-sudo sysctl --system
-lsmod | grep br_netfilter
-lsmod | grep overlay
-sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
-
-# 写入文件
-sudo apt update
-sudo apt install ipset
-sudo apt install ipvsadm
-cat > /etc/sysconfig/modules/ipvs.modules <<EOF
-#!/bin/bash
-modprobe -- ip_vs
-modprobe -- ip_vs_rr
-modprobe -- ip_vs_wrr
-modprobe -- ip_vs_sh
-modprobe -- nf_conntrack
-EOF
-chmod 755 /etc/sysconfig/modules/ipvs.modules && bash /etc/sysconfig/modules/ipvs.modules && lsmod | grep -e ip_vs -e nf_conntrack
-
-
+# 获取pod信息
+kubectl get pods
+kubectl get deploy
+kubectl delete deloy <name> # 删除
+kubectl get services # 获取services信息
+kubectk delete svc <name>
 ```
 
+## 配置文件启动
+
+- 编写配置文件：[官方示例](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+![image-20240617214102495](./assets/image-20240617214102495.png)
+
+简易示例：
+
+```yaml
+apiVersion: v1 # 支持的wending版本
+kind: Pod # 资源对象类型
+metadata:
+  name: nginx-demo # pod名称
+  labels: # 定义标签
+    typeasdasd: app # 这里可以随便写 键值形式就行
+    type: app # 名字为type，值为app，自定义的label
+    version: 1.1.0
+  namespace: 'default' # 没写默认default
+spec: # 期望Pod按照这里面的描述进行创建
+  containers: # 地哦与pod中的容器描述
+  - name: nginx
+    image: nginx:1.7.9 # 制定镜像名称以及版本
+    imagePullPolicy: IfNotPresent  # 镜像的拉取策略
+    command: # 容器启动时执行的命令
+    - nginx
+    - -g
+    - 'daemon off;' # nginx -g "daemon off" 形式执行
+    workingDir: /usr/ # 程序启动目录
+    ports: 
+    - name: http # 端口名称
+      containerPort: 80 # 容器内暴露的端口
+      protocol: TCP # 描述暴露信息基于的通信协议
+    env: # 环境变量名称 
+    - name: JVM_OPTS
+      value: "-Xms128m -Xmx128m"
+      
+    resources:
+      requests: # 最少需要多少资源
+        cpu: 100m # 限制CPU最少使用0.1核心 1000m等于一个核心
+        memory: 128Mi # 限制内存最少使用128M
+      limits: # 最多可以使用多少资源
+        cpu: 200m # 最多使用0.2个核心
+        memory: 256Mi # 最大的内存使用
+restartPolicy: OnFailure # 重启策略，只有失败才会重启    
+  
+```
+
+1. 执行：`kubectl create -f nginx-demo.yaml`
+2. 查看描述信息：`kubectl describe po nginx-demo`
+3. 查看pod信息：`kubectl get po -o wide`
+
+| 参数名                                      | 类型    | 字段说明                                                     |
+| ------------------------------------------- | ------- | ------------------------------------------------------------ |
+| apiVersion                                  | String  | k8s版本说明，可以使用kubectl api version查看                 |
+| kind                                        | String  | yaml文件定义的资源类型和角色                                 |
+| metadata                                    | Object  | 元数据对象，下面是他的属性                                   |
+| metadata.name                               | String  | 元数据对象的名字，比如Pod的名字                              |
+| metadata.namespace                          | String  | 元数据对象的命名空间                                         |
+| Spec                                        | Object  | 详细定义对象                                                 |
+| Spec.containers[]                           | list    | 定义Spec对象的容器列表                                       |
+| Spec.containers[].name                      | String  | 为列表中的某个容器定义名称                                   |
+| Spec.containers[].image                     |         | 为列表中的某个容器定义需要的镜像名称                         |
+| Spec.containers[].imagePullPolicy           | string  | 定义镜像拉取策略：<br />-  Always：默认，每次都尝试重新拉取镜像<br />- Never：表示近视用本地镜像<br />- IfNotPresent：本地有镜像，使用本地镜像，没有就在线拉取 |
+| Spec.containers[].command[]                 | list    | 指定容器启动命令，数组，可以指定多个，不指定则使用镜像打包时的启动命令 |
+| Spec.containers[].args[]                    | list    | 指定容器启动命令参数，数组，可以指定多个                     |
+| Spec.containers[].workingDIr                | string  | 指定容器的工作目录                                           |
+| Spec.containers[].volumeMounts[].           | list    | 指定容器内部的存储卷配置                                     |
+| Spec.containers[].volumeMounts[].name       | string  | 指定可以被容器挂在的存储卷的名称                             |
+| Spec.containers[].volumeMounts[].mountPath  | string  | 指定可以被容器挂在的存储卷路径                               |
+| Spec.containers[].volumeMounts[].readOnly   | string  | 设置存储卷路径的读写模式，true或false，默认是读写模式        |
+| Spec.containers[].ports[]                   | list    | 指定容器需要用到的端口列表                                   |
+| Spec.containers[].ports[].name              | string  | 指定端口的名称                                               |
+| Spec.containers[].ports[].containerPort     | string  | 指定容器需要监听的端口号                                     |
+| Spec.containers[].ports[].hostPort          | string  | 指定容器所在主机需要监听的端口号，默认与containerPort相同    |
+| Spec.containers[].ports[].protocol          | string  | 指定端口协议，支持TCP和UDP，默认TCP                          |
+| Spec.containers[].env[]                     | list    | 指定容器运行前需要设置的环境变量列表                         |
+| Spec.containers[].env[].name                | string  | 指定环境变量名称                                             |
+| Spec.containers[].env[].value               | string  | 指定环境变量值                                               |
+| Spec.containers[].resources                 | Object  | 指定资源限制和资源请求的值                                   |
+| Spec.containers[].resources.limits          | Object  | 指定设置容器运行时资源的运行上限                             |
+| Spec.containers[].resources.limits.cpu      | string  | 指定CPU的限制，单位为Core数                                  |
+| Spec.containers[].resources.limits.memory   | string  | 指定mem内存的限制，单位为MIB、GIB                            |
+| Spec.containers[].resources.requests        | Object  | 指定容器启动和调度时的限制设置                               |
+| Spec.containers[].resources.requests.cpu    | string  | CPU请求，单位为core数，容器初始化可用数量                    |
+| Spec.containers[].resources.requests.memory | string  | 内存请求，单位为MIB、GIB，容器启动的初始化可用数量           |
+| sepc.restartPolicy                          | string  | 定义pod的重启策略：<br />- Always：pod一旦终止运行，无论容器何时终止，都会重启，默认<br />- OnFailure：只有pod以非0退出码终止时，kubelet才会重启该容器，正常结束不会重启<br />- Never：pod终止后，kubelet将退出码报告给master，不会重启pod |
+| spec.nodeSelector                           | Object  | 定义NOde的label过滤标签，以k：v格式指定                      |
+| spec.imagePullSecrets                       | Object  | 定义pull镜像时使用secret名称，以name:secretkey格式指定       |
+| spec.hostNetwork                            | Boolean | 定义是否使用主机网络模式，默认false，设置true表示使用宿主机网络，不使用网桥 |
+
+## 探针
+
+容器内应用的检测机制，根据不同的探针来判断容器应用的状态
+
+**类型：**
+
+- StartupProbe：用于判断应用程序是否已经启动了，当设置startupProbe后，会先禁用其他探针，知道startupProbe成功后，其他探针才会继续。
+
+  > 有时候不能预估应用多长时间启动，确保应用启动后，才执行另外两种探针
+
+- LivenessProbe：用于检测探测容器中的应用是否运行，如果探测失败，kubelet会根据配置的重启策略进行重启，若没有配置，默认为容器启动成功，不会制定重启策略
+
+  > 用于重启pod
+
+- ReadinessProbe：用于探测容器内的程序是否健康，它的返回值如果返回success，那么就认为该容器已经完全启动，并且该容器是可以接受外部流量的
+
+  > 用于检测是否健康
+
+**探测方式：**：
+
+- ExecAction：在容器内部执行一个命令，如果返回值为0,则任务容器时健康的
+- TCPSocketAction：通过tcp连接检测容器内端口是否开放，如果开放则证明该容器健康
+- HTTPGetAction：配置成一个http请求，如果返回的状态吗在200-400之间，则认为容器健康
+
+**参数配置：**
+
+- initialDelaySeconds：初始化时间
+
+  > 无法完全替代staratup探针，因为无法确保一个程序启动的确定时间
+
+- timeoutSeconds：超时时间
+
+- periodSeconds：监测间隔时间
+
+- successThreshold：检查几次成功就表示成功
+
+- failureThreshold：检测失败几次就表示失败
+
+**使用**:
+
+1. 查看指定命名空间kube-sustem中的deploy：`kubectl get deploy -n kube-system`
+2. 编辑配置文件：`kubectl edit deploy -n kube-system coredns`
+
+> 对于pod信息 无法直接修改，不能直接修改这些。但可以查看配置信息
+
+![image-20240617232244000](./assets/image-20240617232244000.png)
+
+![image-20240617232504978](./assets/image-20240617232504978.png)
+
+## 生命周期
+
+![image-20240618000444409](./assets/image-20240618000444409.png)
+
+**Pod退出流程**：
+
+- Endpoint删除pod的ip地址
+
+- Pod变成Terminating状态：变为删除中的状态后，会给pod一个宽限期，让pod执行一些清理或销毁操作
+
+  > 配置参数：terminationGracePeriodSeconds    宽限期的秒数
+
+- 执行preStrop指令
+
+**PreStop的应用：**
+
+- 注册中心下线
+- 数据清理
+- 数据销毁
+
+![image-20240618001520007](./assets/image-20240618001520007.png)
