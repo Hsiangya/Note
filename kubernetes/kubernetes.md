@@ -1,21 +1,4 @@
-# 简介
-
-## 安装
-
-- 禁止swap分区
-
-```bash
-# 关闭防火墙
-sudo ufw disable
-
-# 暂时关闭swap
-sudo swapoff -a
-# 永久关闭，注释包含swap的行
-sudo vim /etc/fstab
-
-# 设置主机名
-hostnamectl set-hostname <hostname>
-```
+# sudo journalctl -u kubelet -n 100 --no-pager简介
 
 ## 组件
 
@@ -215,3 +198,377 @@ CSI：container server interface，将任意存储系统暴露给容器化应用
 Role：定义一组权限
 
 RoleBinding：角色绑定
+
+## 安装
+
+### 环境准备
+
+```bash
+# node节点安装依赖
+sudo apt update
+sudo apt install openssh-server
+sudo systemctl status ssh
+
+# 生成ssh密钥，默认路径/home/hsiangya/.ssh/id_rsa  # 将密钥传递node节点
+ssh-keygen -t rsa -b 4096
+ssh-copy-id -i ~/.ssh/id_rsa.pub hsiangya@192.168.1.101
+
+# 每台机器都关闭空间交换
+sudo swapoff -a
+
+# 关闭SElinux
+sudo apt-get install policycoreutils
+sudo setenforce 0
+sudo setenforce 1
+sestatus
+sudo  # 永久关闭
+SELINUX=disabled
+
+# 关闭swap，找到包含swap的行 注释掉
+sudo vim /etc/fstab
+
+# 设置主机名
+sudo hostnamectl set-hostname <hostname>
+# 在master 添加hosts
+sudo cat >> /etc/hosts <<EOF
+192.168.1.7 master
+192.168.1.101 node1
+192.168.1.102 node2
+192.168.1.104 node4
+EOF
+
+sudo cat >> /etc/hosts <<EOF
+116.198.217.180 master
+EOF
+
+
+# 时间同步1. 
+sudo apt-get update
+sudo apt-get install ntpdate
+sudo ntpdate time.windows.com
+# 同步时间2. 阿里云
+sudo apt install ntp
+sudo vim /etc/ntp.conf
+server ntp1.aliyun.com iburst
+server ntp2.aliyun.com iburst
+server ntp3.aliyun.com iburst
+server ntp4.aliyun.com iburst
+sudo systemctl enable ntp
+sudo systemctl start ntp
+ntpdate -u ntp1.aliyun.com
+```
+
+### 防火墙端口
+
+```bash
+# 开放主节点端口
+sudo ufw allow 6443
+sudo ufw allow 2379:2380/tcp
+sudo ufw allow 10250
+sudo ufw allow 10251
+sudo ufw allow 10252
+sudo ufw reload
+
+# 开放工作节点端口
+sudo ufw allow 10250
+
+# 如果使用 NodePort 范围
+sudo ufw allow 30000:32767/tcp
+sudo ufw allow 30000:32767/udp
+
+# 应用设置
+sudo ufw enable
+```
+
+### containerd
+
+https://github.com/containerd/containerd/blob/main/docs/getting-started.md
+
+```bash
+# 下载并解压到/usr/local
+sudo wget https://github.com/containerd/containerd/releases/download/v1.7.18/containerd-1.7.18-linux-amd64.tar.gz
+sudo tar Cxzvf /usr/local containerd-1.7.18-linux-amd64.tar.gz
+
+# 下载自动启动脚本到指定位置
+sudo curl https://raw.githubusercontent.com/containerd/containerd/main/containerd.service -o /etc/systemd/system/containerd.service
+# 修改sandbox image
+sudo containerd config default > /etc/containerd/config.toml
+sudo sed -i 's#sandbox_image = "registry.k8s.io/pause:3.8"#sandbox_image = "registry.aliyuncs.com/google_containerd/pause"#g' /etc/containerd/config.toml
+sudo systemctl daemon-reload
+sudo systemctl enable containerd.service
+sudo systemctl start containerd.service
+sudo systemctl status containerd.service
+containerd --version
+
+# 安装runc
+sudo wget https://github.com/opencontainers/runc/releases/download/v1.1.13/libseccomp-2.5.5.tar.gz
+sudo tar xf libseccomp-2.5.5.tar.gz
+cd libseccomp-2.5.5
+sudo apt install gperf -y
+./configure
+make && make install
+find / -name "libseccomp.so"
+sudo wget https://github.com/opencontainers/runc/releases/download/v1.1.13/runc.amd64
+sudo install -m 755 runc.amd64 /usr/local/sbin/runc
+runc --version
+
+# 安装CNI插件
+sudo wget https://github.com/containernetworking/plugins/releases/download/v1.5.0/cni-plugins-linux-amd64-v1.5.0.tgz
+sudo mkdir -p /opt/cni/bin
+sudo tar Cxzvf /opt/cni/bin cni-plugins-linux-amd64-v1.5.0.tgz
+ls /opt/cni/bin
+```
+
+### 先决条件
+
+> 官方文档 目前未知影响
+
+```bash
+cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
+overlay
+br_netfilter
+EOF
+
+sudo modprobe overlay
+sudo modprobe br_netfilter
+
+# sysctl params required by setup, params persist across reboots
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+vm.swappiness = 0
+EOF
+
+# Apply sysctl params without reboot
+sudo sysctl --system
+
+lsmod | grep br_netfilter
+lsmod | grep overlay
+
+sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
+
+# 配置systemdcgroup 驱动程序
+sudo vim /etc/containerd/config.toml
+
+[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+  ...
+  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+    SystemdCgroup = true
+```
+
+
+
+### kubeadm、kubelet、kubectl
+
+```bash
+sudo apt-get update
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+# sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+systemctl enable kubelet
+```
+
+### 构建集群
+
+```bash
+# 查看镜像,并提前拉取
+kubeadm config images list
+kubeadm config images pull
+
+sudo kubeadm init \
+--apiserver-advertise-address=192.168.1.7 \
+--kubernetes-version v1.29.3 \
+--service-cidr=10.96.0.0/12 \
+--pod-network-cidr=192.168.0.0/16 
+
+sudo kubeadm init \
+--apiserver-advertise-address=116.198.217.180 \
+--image-repository registry.aliyuncs.com/google_containers \
+--kubernetes-version v1.29.3 \
+--service-cidr=10.96.0.0/12 \
+--pod-network-cidr=192.168.0.0/16 
+
+# 根据输出信息执行对应指令
+sudo mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# 根据输出信息执行对应指令将从节点加入主节点
+kubeadm join 192.168.1.7:6443 --token l6s3dm.0ndg4vs7x5m85ovw \
+	--discovery-token-ca-cert-hash sha256:cfafc4ef737b6931d596c9912faad7bf9580bcd350cbef57e5d7ab6c7131cd87 
+```
+
+### 网络插件
+
+https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+```bash
+# 安装
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml
+watch kubectl get pods -n calico-system
+
+# 安装完成后查看节点状态
+kubectl get node -o wide
+```
+
+```bash
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 198.13.42.52:6443 --token 985810.tz905wcz5hvdxmwh \
+	--discovery-token-ca-cert-hash sha256:d97ab8d3009cc56032d1bfaff1c5a7e8f1f620cb15de6ae341f7565baa0087a7 
+
+```
+
+```bash
+deb http://archive.ubuntu.com/ubuntu jammy main restricted
+# deb-src http://archive.ubuntu.com/ubuntu jammy main restricted
+
+deb http://ubuntu.mirror.constant.com jammy main restricted
+# deb-src http://ubuntu.mirror.constant.com jammy main restricted
+
+deb http://archive.ubuntu.com/ubuntu jammy-updates main restricted
+# deb-src http://archive.ubuntu.com/ubuntu jammy-updates main restricted
+
+deb http://ubuntu.mirror.constant.com jammy-updates main restricted
+# deb-src http://ubuntu.mirror.constant.com jammy-updates main restricted
+
+deb http://archive.ubuntu.com/ubuntu jammy universe
+# deb-src http://archive.ubuntu.com/ubuntu jammy universe
+deb http://archive.ubuntu.com/ubuntu jammy-updates universe
+# deb-src http://archive.ubuntu.com/ubuntu jammy-updates universe
+
+deb http://ubuntu.mirror.constant.com jammy universe
+# deb-src http://ubuntu.mirror.constant.com jammy universe
+deb http://ubuntu.mirror.constant.com jammy-updates universe
+# deb-src http://ubuntu.mirror.constant.com jammy-updates universe
+
+deb http://archive.ubuntu.com/ubuntu jammy multiverse
+# deb-src http://archive.ubuntu.com/ubuntu jammy multiverse
+deb http://archive.ubuntu.com/ubuntu jammy-updates multiverse
+# deb-src http://archive.ubuntu.com/ubuntu jammy-updates multiverse
+
+deb http://ubuntu.mirror.constant.com jammy multiverse
+# deb-src http://ubuntu.mirror.constant.com jammy multiverse
+deb http://ubuntu.mirror.constant.com jammy-updates multiverse
+# deb-src http://ubuntu.mirror.constant.com jammy-updates multiverse
+
+deb http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+# deb-src http://archive.ubuntu.com/ubuntu jammy-backports main restricted universe multiverse
+
+deb http://ubuntu.mirror.constant.com jammy-backports main restricted universe multiverse
+# deb-src http://ubuntu.mirror.constant.com jammy-backports main restricted universe multiverse
+
+deb http://archive.ubuntu.com/ubuntu jammy-security main restricted
+# deb-src http://archive.ubuntu.com/ubuntu jammy-security main restricted
+deb http://archive.ubuntu.com/ubuntu jammy-security universe
+# deb-src http://archive.ubuntu.com/ubuntu jammy-security universe
+deb http://archive.ubuntu.com/ubuntu jammy-security multiverse
+# deb-src http://archive.ubuntu.com/ubuntu jammy-security multiverse
+
+deb http://ubuntu.mirror.constant.com jammy-security main restricted
+# deb-src http://ubuntu.mirror.constant.com jammy-security main restricted
+deb http://ubuntu.mirror.constant.com jammy-security universe
+# deb-src http://ubuntu.mirror.constant.com jammy-security universe
+deb http://ubuntu.mirror.constant.com jammy-security multiverse
+# deb-src http://ubuntu.mirror.constant.com jammy-security multiverse
+
+```
+
+### 基于阿里云
+
+前置准备
+
+```bash
+# 每台机器都关闭空间交换
+sudo swapoff -a
+
+# 关闭SElinux
+sudo apt-get install policycoreutils
+sudo setenforce 0
+sudo setenforce 1
+sestatus
+sed -ri 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
+
+# 关闭swap，找到包含swap的行 注释掉
+sudo vim /etc/fstab
+```
+
+
+
+```bash
+# 设置主机名
+sudo hostnamectl set-hostname <hostname>
+# 在master 添加hosts
+sudo cat >> /etc/hosts <<EOF
+192.168.1.7 master
+192.168.1.101 node1
+192.168.1.102 node2
+192.168.1.104 node4
+EOF
+
+# 时间同步1. 
+sudo apt-get update
+sudo apt-get install ntpdate
+sudo ntpdate time.windows.com
+# 同步时间2. 阿里云
+sudo apt install ntp
+sudo vim /etc/ntp.conf
+server ntp1.aliyun.com iburst
+server ntp2.aliyun.com iburst
+server ntp3.aliyun.com iburst
+server ntp4.aliyun.com iburst
+sudo systemctl enable ntp
+sudo systemctl start ntp
+ntpdate -u ntp1.aliyun.com
+.
+# 内核ip转发
+cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+vm.swappiness = 0
+EOF
+sudo sysctl --system
+lsmod | grep br_netfilter
+lsmod | grep overlay
+sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
+
+# 写入文件
+sudo apt update
+sudo apt install ipset
+sudo apt install ipvsadm
+cat > /etc/sysconfig/modules/ipvs.modules <<EOF
+#!/bin/bash
+modprobe -- ip_vs
+modprobe -- ip_vs_rr
+modprobe -- ip_vs_wrr
+modprobe -- ip_vs_sh
+modprobe -- nf_conntrack
+EOF
+chmod 755 /etc/sysconfig/modules/ipvs.modules && bash /etc/sysconfig/modules/ipvs.modules && lsmod | grep -e ip_vs -e nf_conntrack
+
+
+```
+

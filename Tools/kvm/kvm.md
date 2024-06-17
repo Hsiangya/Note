@@ -14,12 +14,12 @@ sudo apt-get install virt-manager
 sudo brctl addbr <name>
 sudo brctl show
 sudo brctl addif <name> <本地网络接口名(enp3s0)> 
-udo brctl show
+sudo brctl show
 
 # 删除物理往开IP，把网卡接口配置到网桥上
 # 应用配置
 sudo ip addr del dev <本地网络接口名(enp3s0)> <ip>/24
-udo ip addr add <ip>/24 dev <name>
+sudo ip addr add <ip>/24 dev <name>
 sudo ip link set up <name>
 sudo route add default gw 192.168.1.1   
 iptables -A FORWARD -p all -i br0 -j ACCEPT  #开启转发
@@ -77,9 +77,9 @@ sudo netplan apply
 
 ```bash
 sudo ip link set <name> down
-sudo brctl delif <name> enp0s25
-sudo ip link set enp0s25 down
-sudo ip link set up enp0s25 #重启物理网卡
+sudo brctl delif <name> enp3s0
+sudo ip link set enp3s0 down
+sudo ip link set up enp3s0 #重启物理网卡
 ```
 
 - 设置开机自启
@@ -88,8 +88,6 @@ sudo ip link set up enp0s25 #重启物理网卡
 # 设置虚拟机自启
 sudo virsh autostart <name>
 sudo virsh list --all --autostart
-
-
 
 ```
 
