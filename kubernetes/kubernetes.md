@@ -642,3 +642,55 @@ restartPolicy: OnFailure # 重启策略，只有失败才会重启
 - 数据销毁
 
 ![image-20240618001520007](./assets/image-20240618001520007.png)
+
+# 资源调度
+
+## Label与Selector
+
+- label：标签，在各类资源的`metadata.labels`中进行配置
+
+  > ![image-20240618140211415](./assets/image-20240618140211415.png)
+
+- selector：选择器
+
+> 在个对象的配置spec.selector或其他可以写selector的属性中编写
+>
+> ![image-20240618141420201](./assets/image-20240618141420201.png)
+
+## Deployment
+
+- 创建
+
+![image-20240618143726594](./assets/image-20240618143726594.png)
+
+- 滚动升级：先创建一个新的RS，再关闭旧的RS，再创建一个新的，再关掉旧的 
+
+![image-20240618145841377](./assets/image-20240618145841377.png)
+
+- 回滚：
+
+更新deploy时参数不小心写错，更新状态会被卡住
+
+![image-20240618151406010](./assets/image-20240618151406010.png)
+
+- 扩容缩容
+
+> - 通过kubectl edit 修改配置文件中的replicate副本数
+> - 通过kubectl scalemingling可以进行自动扩容/所用
+> - 扩缩容只是直接创建副本数，没有更新pod template，因此不会创建新的rs
+
+![image-20240618152939694](./assets/image-20240618152939694.png)
+
+- 暂停与恢复
+
+> - 每次对pod template中的信息发生修改后，都会触发更新deployment操作
+> - 频繁修改信息，就会产生多次更新，而实际上只需要执行最后一次更新即可，就可以暂停deployment的rollout
+
+通过`kubectl rollout pause deployment  <name>`就可以实现暂停，直到下次恢复后才会继续进行滚动更新
+
+## StatefulSet
+
+![image-20240618153918499](./assets/image-20240618153918499.png)
+
+- 创建
+
