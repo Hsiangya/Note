@@ -407,6 +407,29 @@ watch kubectl get pods -n calico-system
 kubectl get node -o wide
 ```
 
+### metrics-server
+
+```bash
+sudo wget https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.7.1/components.yaml -O metrics-server-components.yaml
+
+# 修改参数为不校验证书,已经镜像源换源（阿里云）
+sudo vim metrics-server-components.yaml
+      containers:
+      - args:
+        - --cert-dir=/tmp
+        - --secure-port=10250
+        - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+        - --kubelet-use-node-status-port
+        - --metric-resolution=15s
+        - --kubelet-insecure-tls
+        image: registry.k8s.io/metrics-server/metrics-server:v0.7.1
+
+# 安装 
+kubectl apply -f metrics-server-components.yaml
+```
+
+
+
 ## kubectl命令
 
 - 从节点本质是通过访问API server来控制，`~/.kube/config`中保留了配置文件
@@ -692,5 +715,86 @@ restartPolicy: OnFailure # 重启策略，只有失败才会重启
 
 ![image-20240618153918499](./assets/image-20240618153918499.png)
 
-- 创建
+- 创建![image-20240618161834450](./assets/image-20240618161834450.png)
 
+- 扩缩容
+
+> 扩容：`kubectl scale statefulset web --replicas=5`
+>
+> 缩容：`kubectl path statefulset web -p '{"spec":{"replicas":3}}'`
+>
+> 直接对副本数进行修改
+
+![image-20240618170525368](./assets/image-20240618170525368.png)
+
+![image-20240618171518917](./assets/image-20240618171518917.png)![image-20240618171547353](./assets/image-20240618171547353.png)
+
+- 镜像更新：
+
+通过patch来间接实现：
+
+RollingUPdate：利用滚动更新chonadepartition属性，可以实现建议的灰度发布的效果
+
+> 如果有5个pod，如果当前partition设置为3,那么此时滚动更新是，只会更新序号大于3的pod
+>
+> 利用该机制，可以通过控制partition的值，来决定只更新其中一部分pod，确认没有问题后逐渐增大更新的pod数量，最终实现pod全部更新
+>
+> ![image-20240618203813034](./assets/image-20240618203813034.png)
+
+Ondelete：当pod被删除的时候才会进行更新
+
+![image-20240618204149649](./assets/image-20240618204149649.png)
+
+删除：删除statefulset和headless service
+
+- 级联删除：删除statefulSet时会同时删除Pods
+
+  > kubectl delete statefulset web
+
+- 非级联删除：删除statefulset时不会删除pods，删除sts后，pod不会删除
+
+  > kubectl delete sts web --cascade=false
+
+删除service：直接删除 `kubectl delete service nginx`
+
+![image-20240618205518145](./assets/image-20240618205518145.png)
+
+## DaemonSet
+
+![image-20240618211044851](./assets/image-20240618211044851.png)
+
+![image-20240618212828411](./assets/image-20240618212828411.png)
+
+- nodeSelector：只调度到匹配制定label的Node上
+
+  > ![image-20240618213108811](./assets/image-20240618213108811.png)
+
+- nodeAffinity：功能更丰富的Node选择器，比如支持集合操作
+
+- podAffinity：调度满足条件的Pod所在的Node上
+
+nodeSelector也支持滚动更新，建议使用Ondelete，避免占用资源过多
+
+## HPA
+
+可以根据CPU使用率或自定义指标（metrics）自动对Pod进行扩缩容
+
+- 控制管理器每隔30s查询一次metrics的资源使用情况
+- 支持三种metrics类型
+  - 预订以metrics：以利用率的方式计算
+  - 自定义Pod metrics，以原始值（raw value）的方式计算
+  - 自定义的object metrics
+- 支持两种metrics查询方式：Heapster和自定义的REST API
+- 支持多metrics
+
+> 实现CPU或内存的监控，首先有个前提条件是该对象必须配置了resources.requests.cpu或resources.requests.memory才可以，可以配置当cpu/memory达到上述配置的百分比后进行扩容或缩容
+
+创建一个HPA：
+
+![image-20240618222837715](./assets/image-20240618222837715.png)
+
+**自定义HPA**:
+
+- 控制管理器开启-horizontal-pod-autoscaler-use-rest-clients
+- 控制管理器的-apiserver指向API server Aggregator
+- 在API Server Aggregator中注册自定义的metrics API
