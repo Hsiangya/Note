@@ -798,3 +798,82 @@ nodeSelector也支持滚动更新，建议使用Ondelete，避免占用资源过
 - 控制管理器开启-horizontal-pod-autoscaler-use-rest-clients
 - 控制管理器的-apiserver指向API server Aggregator
 - 在API Server Aggregator中注册自定义的metrics API
+
+# 服务发现
+
+service负责东西流量、横向流量，ingress负责南北流量
+
+![image-20240618223211353](./assets/image-20240618223211353.png)
+
+## Services
+
+### 介绍
+
+![image-20240618224403272](./assets/image-20240618224403272.png)![image-20240618225528091](./assets/image-20240618225528091.png)
+
+配置信息：
+
+![image-20240618231047901](./assets/image-20240618231047901.png)
+
+spec.ports[].protocol：端口绑定的协议，支持TCP、UDP、SCTP，默认TCP
+
+命令操作：
+
+```bash
+# 创建service
+kubectl create -f xxx-svc.yaml
+
+# 查看service信息，通过service的cluster ip 进行访问
+kubectl get svc
+
+# 查看pod信息，通过pod 的ip进行访问
+kubectl get po -owide
+
+# 创建其他pod通过service name 进行访问（推荐）
+kubectl exec -it busyboxy --sh curl http://nginx-svc
+
+# 默认在当前namespace中访问，如果需要跨namespace 访问pod，则在service name后面加上.<namespace>即可
+curl http:nginx-svc.default
+```
+
+### 访问外部服务
+
+1. 定义一个sevice
+2. 定义一个endpoint，并指定外部的ip地址
+
+![image-20240618233625303](./assets/image-20240618233625303.png)
+
+### 代理外部域名
+
+1. 定义service配置文件
+
+   ```yaml
+   apiVersion: v1
+   kind: Service
+   metadata:
+     labels:
+       app: domain
+     name: domain
+   spec:
+     type: ExternalName
+     externalName: www.xxx.com
+   
+   ```
+
+2. 创建：`kubectl create -f xxx.yaml` 查询`kubectl get svc`
+
+### 配置类型
+
+- CLusterIP：只能在集群内部使用，不配值类型的话默认就是ClusterIP
+
+- ExternalName：返回定义的CNAME别名，可以配置为域名
+
+- NodePort：会在所有安装了kube-proxy的节点都绑定一个端口，此段扣可以代理至对应的POd，集群外部可以使用任意节点ip+NodePort的端口号访问到集群中对应的Pod中的服务
+
+  > 在ports配置中增加nodePort配置制定端口，需要在下方的端口范围内，如果不指定会随机指定端口，端口范围30000～32767
+  >
+  > 端口范围配置在usr/lib/systemd/system/kube-apiserver.service文件中
+  >
+  > 生产不建议这样操作
+
+- LoadBalancer：使用云服务商提供的负载均衡服务
