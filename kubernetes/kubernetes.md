@@ -428,8 +428,6 @@ sudo vim metrics-server-components.yaml
 kubectl apply -f metrics-server-components.yaml
 ```
 
-
-
 ## kubectl命令
 
 - 从节点本质是通过访问API server来控制，`~/.kube/config`中保留了配置文件
@@ -877,3 +875,84 @@ curl http:nginx-svc.default
   > 生产不建议这样操作
 
 - LoadBalancer：使用云服务商提供的负载均衡服务
+
+## Ingress
+
+![image-20240618235431000](./assets/image-20240618235431000.png)
+
+### ingress-nginx安装
+
+https://kubernetes.github.io/ingress-nginx/deploy/
+
+```bash
+# 安装helm
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+
+
+# 安装ingress-nginx
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo list
+helm search repo ingress-nginx
+helm pull ingress-nginx/ingress-nginx
+sudo tar -xf ingress-nginx-4.10.1.tgz
+
+# 修改values.yaml文件
+# controller.image.registry修改镜像源以及image、注释digest、digestChroot hash校验
+registr: register.cn-hangzhou.aliyuncs.com
+image：google_containers/nginx-ingress-controller
+# 修改  registry: registry.k8s.io image: ingress-nginx/kube-webhook-certgen 镜像,并注释digest
+registry: registry.cn-hangzhou.aliyuncs.com
+image: google_containers/kube-webhook-certgen
+# 修改   kind: Deployment 为DaemonSet，并在nodeSelector增加属性 ingress: "true"
+kind： DaemonSet
+ingress: "true"
+# 修改hostNetwork为true  、dnsPolicy策略
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet # 基于主机名
+# 修改service中的type由LoadBalancer修改为CLusterIP、有云服务器的时候才用LoadBalancer
+type: ClusterI
+# 修改admissionWebhooks.enabled为false 表示不需要证书
+enabled: false
+
+# 为ingress专门创建一个namespace
+kubectl create ns ingress-nginx
+# 为需要部署ingress的节点加上标签
+kubectl label node <node-name> ingress=true
+kubectl label node master ingress=true
+# 安装ingress-nginx，从当前目录下找配置文件
+helm install ingress-nginx -n ingress-nginx .
+kubectl get po -n ingress-nginx
+kubectl get po -n ingress-nginx -o wide
+```
+
+### ingress-nginx使用
+
+配置文件：
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress # 资源类型
+metadata:
+  name: k8s-nginx-ingress
+spec:
+  ingressClassName: nginx
+  rules: # 配置规则 可以配置多个
+  - host: www.xx.com # 域名配置，可以配置多个
+    http:
+      paths: # 相当于nginx的location配置，可以配置多个
+      - path: /api # 等价与nginx中location的前缀匹配
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-svc
+            port:
+              number: 80
+```
+
+- pathType:
+  - ImplementationSpecific：需要执行IngressClass，具体匹配规则以IngressClass中的规则为准
+  - Exact：精确匹配，url需要与path完全匹配上，且区分大小写
+  - Prefix：前缀匹配，与`/`作为分 隔符来进行前缀匹配
+
