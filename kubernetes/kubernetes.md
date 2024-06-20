@@ -956,3 +956,85 @@ spec:
   - Exact：精确匹配，url需要与path完全匹配上，且区分大小写
   - Prefix：前缀匹配，与`/`作为分 隔符来进行前缀匹配
 
+# 配置与存储
+
+## 配置管理
+
+### ConfigMap
+
+创建：使用`kubectl create cofigmap -h` 查看示例，构建configmap对象
+
+```bash
+# 基于文件夹创建，会扫描多个文件
+kubectl create configmap my-config --from-file=path/to/bar
+
+# 基于指定的文件
+kubectl create configmap my-config --from-file=key1=/path/to/bar/file1.txt
+--from-file=key2=/path/to/bar/file2.txt
+
+# 基于key value的形式
+kubectl create configmap my-config --from-literal=key1=config1 --from-literal=key2=config2
+```
+
+![image-20240619230154376](./assets/image-20240619230154376.png)
+
+环境变量与配置文件加载：
+
+![image-20240619231521040](./assets/image-20240619231521040.png)
+
+### Secret
+
+基于值的形式创建：![image-20240620205720796](./assets/image-20240620205720796.png)
+
+### SubPath
+
+用于解决configmap数据挂在的时候其他文件被覆盖的问题
+
+![image-20240620223200181](./assets/image-20240620223200181.png)
+
+### 配置的热更新
+
+通常会将项目的配置文件作为configmap然后挂在到pod，更新configmap中的配置时：
+
+- 默认：自动更新，更新周期是更新时间+缓存时间
+
+  > 通常十几秒
+
+- subpath：不会更新
+
+  > 可以通过取消subPath的使用，将配置文件挂载到一个不存在的目录，避免目录的覆盖，然后利用软连接的形式，将文件链接到目标位置
+  >
+  > 如果目标位置原本有文件，无法创建软连接，可以在初始化容器的时候操作执行删除命令，将默认的文件删除即可
+  >
+  > ![image-20240620223943967](./assets/image-20240620223943967.png)
+
+- 变量形式：pod中的一个变量是从configmap或serret中得到，同样不会更新
+
+**直接修改**:
+
+```bash
+# 查看对应的configmap，直接进行修改
+kubectl get cm
+kubectl edit cm <name>
+```
+
+**使用replace做替换**:
+
+>  configmap通常是基于文件创建，并不会编写yaml文件，因此修改时直接修改配置文件,而replace没有--from-file参数，因此无法实现基于源配置文件的替换
+
+```bash
+kubectl create cm --from-file=<path> --dry-run -o yaml | kubectl replace -f-
+```
+
+- `--dry-run`会打印yaml文件，但不会将该文件发送给apiserver，再结合`-o yaml`输出yaml文件就可以得到一个配置好但是没有发给-apiserver的文件，然后结合replace监听控制台输出得到的yaml数据即可实现替换
+- `-f-`表示接受控制台的输出作为该命令的输入
+- `--dry -run`：会将配置文件打印出来 不会传递给apiserver
+
+### 不可变secret和configmap
+
+对于一些敏感文件，上线后不允许修改，此时在配置configmap时设置`spec.immutable`为` true`来禁止修改，配置与containers同级![image-20240620230503702](./assets/image-20240620230503702.png)
+
+```bash
+kubectl edit cm <name>
+```
+
