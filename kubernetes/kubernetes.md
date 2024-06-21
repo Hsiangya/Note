@@ -1287,3 +1287,90 @@ kubernetes集群有两类用户：由kubernetes管理的Service Accounts（服�
 - Service Account Controller
 
   > Service Account COntroller在namespaces里管理ServiceAccount，并确保每个有效的namespaces中都存在一个名为default的ServiceAccount
+
+# 集群监控
+
+## 介绍
+
+Prometheus：一套开源的监控系统、报警、事件序列的集合
+
+![image-20240621224639118](./assets/image-20240621224639118.png)
+
+## kube-prometheus
+
+- 检查kubernetes的版本号对应的版本，https://github.com/prometheus-operator/kube-prometheus
+
+```bash
+# 下载制定版本
+sudo wget https://github.com/prometheus-operator/kube-prometheus/archive/refs/tags/v0.13.0.zip
+sudo unzip v0.13.0.zip 
+
+# 创建对应的资源，文件内容过长 apply出现兼容问题
+kubectl apply -f manifests/setup 
+kubectl delete -f manifests/setup
+kubectl create -f manifests/setup 
+# 创建mainfests资源
+kubectl apply -f manifests
+kubectl get all -n monitoring
+
+# 获取服务信息，关注alertmanager-main以及prometheus-k8s、grafana
+kbectl get svc -n monitoring
+```
+
+- 在manifests目录下添加prometheus-ingress.yaml配置文件
+
+```bash
+# 将域名添加到主机下方
+sudo vim /etc/hosts
+sudo vim manifests/prometheus-ingress.yaml
+```
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: monitoring
+  name: prometheus-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: grafana.hsiangya.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+  - host: prometheus.hsiangya.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-k8s
+            port:
+              number: 9090
+  - host: alertmanager.hsiangya.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: alertmanager-main
+            port:
+              number: 9093
+```
+
+- 卸载
+
+```bash
+kubectl delete --ignore-not-found=true -f manifests/ -f manifests/setup
+```
+
+
+

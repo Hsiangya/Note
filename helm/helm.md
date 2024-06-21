@@ -138,6 +138,11 @@ helm install redis_release ./redis -n redis
 # 获取资源
 kubectl get all -n redis
 kubectl get pvc -n redis
+
+# 卸载，卸载完之后 PVC还存在
+helm list -n redis
+helm delete redis -n redis
+kubectl delete pvc <pvc name1> <pvc name2> ...
 ```
 
 ## chart升级与回滚
@@ -153,8 +158,6 @@ kubectl get pvc -n redis
 - 回退到上一个版本：`helm rollback <name>`
 
 - 回退到制定版本：`helm rollback <name> <revision>`
-
-
 
 # harbor
 
@@ -173,7 +176,5 @@ kubectl create namespace harbor
 
 # 加载配置
 helm show values harbor/harbor > harbor-values.yaml
-
-
 ```
 
