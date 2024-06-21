@@ -1148,3 +1148,110 @@ spec：
 ![image-20240621131829265](./assets/image-20240621131829265.png)
 
 ![image-20240621134526551](./assets/image-20240621134526551.png)
+
+# 高级调度
+
+## CronJob计划任务
+
+在kubernetes中周期性运行计划任务，与linux中的crontab相同
+
+CronJob执行的事件是controller=manager的事件，所以一定要确保controller-manager时间是准确的![image-20240621142031186](./assets/image-20240621142031186.png)
+
+ 通过命令`kubectl get cribjob`可以查看josb的执行情况
+
+## initC
+
+相对于postStart，initCOntrokker能够保证一定在EntryPonit之前执行，而postStart不能，其次postStart更适合取执行一些命令操作，而initController实际上就是一个容器，可以在其他基础容器环境下执行更复杂的初始化功能。
+
+pod创建的模板中配置init参数：
+
+> 加在template中的spec 不是上层spec
+
+```yaml
+spec:
+  initContainers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    command: ["sh","-c","echo 'inited;' >> ~/.init"]
+    name: init-test
+```
+
+![image-20240621143329553](./assets/image-20240621143329553.png)
+
+## 污点和容忍
+
+污点：master主节点调度从节点实现对应的任务，更重要的角色，控制中心是主节点，不希望pod部署到主节点，因此主节点被打了污点
+
+容忍：如果某个任务配置了容忍，即容忍某个污点，即使node被打了该类型的污点，也可以在该node上进行部署
+
+通过污点和容忍可以灵活的让某些Pod从某些节点驱逐
+
+配备了特殊硬件的节点：在部分节点配备了特殊硬件的集群中，不希望不需要这些硬件的Pod调度到该特殊节点。
+
+- 如果Pod不能忍受这类污点：Pod会马上被驱逐
+- 如果Pod能够忍受这类污点，但是在容忍度定义中没有制定tolerationSeconds，则POd还会一直在这个节点上运行
+- 如果Pod能够忍受这类污点，而且制定了tolerationSeconds，则Pod还能在这个节点上继续运行指定的时间长
+
+当某种条件为真时，节点控制器会自动给节点添加一个污点。当前内置的污点包括：
+
+- `node.kubernetes.io/not-ready`：节点未准备好。相当于节点状态Ready的值为False
+- `node.kubernetes.io/unreachable`：节点控制器访问不到节点，相当于节点状况Ready的值为`Unknown`
+- `node.kubernetes.io/memory-pressure`：节点存在内存压力
+- `node.kubernetes.io/disk-pressure`：节点存在磁盘压力
+- `node.kubernetes.io/pid-pressure`：节点的PID压力
+- `node.kubernetes.io/network-pressure`：节点网络不可用
+- `node.kubernetes.io/unscheduable`：节点不可调度
+- `node.cloudprovider.kubernetes.io/uninitialized`：如果kubelet启动时制定了一个外部云平台驱动，他将给当前节点添加一个污点将其标志为不可用。在cloud-controller-mannager的一个控制器初始化这个节点后，kubelet将删除这个污点。
+
+在节点被驱逐时，节点控制器或kubelet会添加带有`NoExecute效果的相关污点。如果异常状态恢复正常，kubelet或节点控制器能够移除相关的污点
+
+NoExecute：
+
+- 如果POdbanned接受这类污点，Pod会马上被驱逐
+- 如果Pod能够忍受这类污点，但是在容忍读定义中没有制定tolerationSeconds，则Pod还会一直在这个节点上运行。
+- 如果Pod能够忍受这类污点，而且制定了toleraionSeconds，则POd还能在这个节点上继续运行这个指定的时间长度。
+
+容忍：
+
+是标注在pod上的，当pod被调度时，如果没有配置容忍，则该pod不会被调度到有污点的节点上，只有pod上标注了满足某个节点的所有污点，则会被调度到这些节点
+
+Equal：比较操作类型为Equal，则意味着必须与污点值做匹配，key/alue都必须相同，才能表示容忍该污点
+
+Exists：容忍与污点的比较只比较ksy，不比较value，不关心value是什么东西，只要key存在，则表示可以容忍
+
+```bash
+# 为节点打上污点
+kubectl taint node k8s-master key=value:NoSchedule
+# 移除污点
+kubectl taint node k8s-master key=value:NoSchedule-
+# 查看污点
+kubectl describe node k8s-master 
+```
+
+![image-20240621161057706](./assets/image-20240621161057706.png)
+
+## 亲和力（Affinity）
+
+与污点和容忍相反，可以限制Pod只能在特定的节点上选择，或优先在特定的节点上运行。推荐方法是使用标签选择器来进行选择。通常这样的约束不是必须的，因为调度器自动进行合理的防止。但在某些情况下，你可能需要进一步控制Pod被部署到哪个节点。
+
+**NodeAffinity**
+
+- RequiredDuringSchedulingIgnoredDuringExecution：满足
+- PreferredDurringSchedulingIngoredDuringExecution：尽量满足
+
+**PodAffinity**
+
+- RequiredDuringSchedulingIngoreDuringExecution：满足
+- PreferredDuringSchedulingIgnoredDuringExecution：尽量满足
+
+**PodAntiAffinity**
+
+- RequiredDuringSchedulingIgnoredDuringExecution：满足
+- PreferredDuringSchedulingIgnoredDuringExecution：尽量满足
+
+可以使用pod规约中的`.spec.affinity.nodeAffinity`字段来设置节点亲和性
+
+![image-20240621162439877](./assets/image-20240621162439877.png)
+
+
+
