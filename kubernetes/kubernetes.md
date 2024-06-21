@@ -1038,3 +1038,113 @@ kubectl create cm --from-file=<path> --dry-run -o yaml | kubectl replace -f-
 kubectl edit cm <name>
 ```
 
+## 持久化存储
+
+### Volumes
+
+- HostPath：将节点上的文件或目录挂在到Pod上，此时目录会变成持久化存储目录，即使Pod被删除后重启，也可以重新加载到该目录，该目录下的文件不会丢失
+
+![image-20240620231922193](./assets/image-20240620231922193.png)
+
+- EmptyDir：用于一个Pod中不同的COntainer共享数据时使用的，由于只是在Pod内部使用，因此与其他volume比较大的区别是，当Pod如果被删除了，那么emptyDir也会被删除
+
+  > 存储介质可以是任意类型，如SSD、磁盘或网络存储。可以将emptyDir.medium设置为Memory让k8s使用tmpfs（内存支持文件系统），速度比较快，但是重启tmpfs节点时，数据会被清楚，且设置的大小会计入到container的内存限制中
+  >
+  > ![image-20240620232510636](./assets/image-20240620232510636.png)
+
+![image-20240620232902537](./assets/image-20240620232902537.png)
+
+> 存在的意义就是同一个Pod中多个容器共享数据，数据自能做共享，不能持久化
+
+### NFS挂载
+
+nfs卷能将NFS（网络文件系统）挂在到Pod中，不像emptyDir那样会在删除Pod的同时也会被删除，nfs卷的内容在删除Pod时会被保存，卷只是被卸载。这意味着nfs卷可以被预先填充数据，并且这些数据可以在Pod之间共享
+
+> 除了磁盘IO还有网络IO，效率会慢一点
+
+```bash
+# 安装nfs
+sudo apt update
+sudo apt install nfs-common -y
+# 挂载
+sudo mount -t nfs [NFS服务器的IP或主机名]:/路径/到/共享 /本地/挂载/点
+```
+
+```yaml
+spec：
+  containers:
+  - image: nginx
+    name: test-container
+    volumeMounts:
+    - mountPath: /my-nfs-data
+      name: test-volume
+  volimes:
+  - name: test-volume
+    nfs:
+      server: 192.168.113.121
+      path: /home/nfs/rw/www
+      readOnly: false
+```
+
+### PV与PVC
+
+![image-20240621105352432](./assets/image-20240621105352432.png)
+
+#### 生命周期
+
+**构建:**
+
+- 静态构建：集群管理员创建若干PV卷。这些卷对象带有真实存储的细节信息，并且对集群用户可见。PV卷对象存在与kubernters API中，可供用户消费（使用）
+
+- 动态构建：如果集群中已经有的PV无法满足PVC的需求，那么集群会根据PVC自动构建一个PV，该操作是通过StorageClass实现的。
+
+  > 想要实现这个操作，前提是PVC必须设置StorageClass，否则会无法动态构建该PV，可以通过启用DeafultStorageClass来实现PV的构建
+
+**绑定:**当用户创建一个PVC对象后，主节点会监测信的PVC对象，并且寻找与之匹配的PV卷，找到PV卷后将二者绑定在一起。如果找不到对应的PV，则需要看PVC是否这只StorageClass来决定是否动态创建PV，若没有配置，PVC就会一直处于未绑定状态，知道有与之匹配的PVH欧才会申领绑定关系
+
+**使用:**将PVC当作存储卷来使用，集群会通过PVC找到绑定的PV，并为Pod挂在该卷。Pod一旦使用PVC绑定PV后，为了保护数据，避免数据丢失问题，PV对象会收到保护，在系统中无法被删除
+
+**回收策略:**当不再使用其存储卷时，他们可以从API中将PVC对象删除，从而允许该资源被回收再利用。PersistenVolume对象的挥手策略告诉集群，当其被从申领中释放时如何处理该数据卷。
+
+- Retained(保留)：
+
+  > 可以手动挥手资源，当PersistentVolumeClaim对象被删除是，PersistentVolume卷任然存在，对应的数据卷被视为已释放(released)，由于卷上任然存在前一申领人的数据，该卷不能用于其他申领。管理员可以手动回收该卷：
+  >
+  > - 删除PersistentVolume对象，与之相关的，位于外部基础设施中的存储资产在PV删除之后任然存在
+  > - 根据情况，手动清楚锁关联的存储资产上的数据
+  > - 手动删除所有关联的存储资产
+  >
+  > 如果希望重用该存储资产，可以基于存储资产的定义创建新的PersistentVolume卷对象
+
+- Deleted(删除)：
+
+  > 对于支持Delete挥手策略的卷插件，删除动作会将PersistentVOlume对象从kubernetes中移除，同时也会从外部基础设施中移除所关联的存储资产。同台制备的卷会继承其StorageClass中设置的挥手策略，该策略默认为Delete，管理员需要根据用户的期望来配置StorageClass;否则PV卷被创建之后必须要被编辑或者修补
+
+- Recycled(回收)：
+
+  > 回收策略Recycle已被废弃，取而代之的见识方案是使用动态制备。
+  >
+  > 如果下层的卷插件支持，挥手策略Recycle会在卷上执行一些基本的擦出（rm -rf /thevolume/*）操作，之后b允许该卷用于新的PVC申领
+
+#### PV
+
+状态：
+
+- Available：空闲，未被绑定
+- Bound：已经被PVC绑定
+- Released：PVC被删除，资源已挥手，但是PV未被重新使用
+- Failed：自动回收失败
+
+![image-20240621120014462](./assets/image-20240621120014462.png)
+
+#### PVC
+
+![image-20240621121754657](./assets/image-20240621121754657.png)
+
+### storageClass
+
+制备器（Provisioner）：每个StorageClass都有一个制备器（Provisioner），用来决定使用哪个卷插件制备PV
+
+![image-20240621131829265](./assets/image-20240621131829265.png)
+
+![image-20240621134526551](./assets/image-20240621134526551.png)
