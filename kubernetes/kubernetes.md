@@ -1253,5 +1253,37 @@ kubectl describe node k8s-master
 
 ![image-20240621162439877](./assets/image-20240621162439877.png)
 
+# 身份认证和鉴权
 
+kubernetes集群有两类用户：由kubernetes管理的Service Accounts（服务账户） 和 User Accounts（普通账户）
 
+普通账户是假定被外部或独立服务管理的，由管理员分配keys，用户像使用keystone或google帐号一样，被存储在包含usernames和passwords的list文件里
+
+- 普通账户：在kubernets中不能通过API调用将普通用户添加到集群中
+  - 普通账户是针对（人）用户的，服务账户针对Pod进程
+  - 普通账户是全局性，在集群所有namespaces中，名称具有唯一性
+  - 通常，集群的普通账户可以与企业数据库同步，信的普通账户创建需要特殊权限，服务账户创建目的是更轻量化，允许集群用户为特定任务创建服务账户
+  - 普通账户和服务账户的审核注意事项不同
+  - 对于复杂系统的配置包，可以包括对该系统的各种组件的服务账户的定义
+
+服务账户（Service Accounts）：
+
+- Service Account Admission Controller
+
+  > 通过Admission Controller插件来实现对pod修改，他是apiserver的一部分。创建或更新pod时会同步进行修改pod
+  >
+  > 当插件处于激活状态（在大多数发行版本中都默认情况）创建或修改pod时，会按以下操作执行：
+  >
+  > 1. 如果pod没有设置ServiceAccount，则将ServiceAccount设置为default
+  > 2. 确保pod医用ServiceAccount存在，否则将会拒绝请求
+  > 3. 如果pod不包含任何imagePullSecrets，则将ServiceAccount的ImagePullSecrets会添加到pod中
+  > 4. 将包含API访问的TOken的pod添加了一个volume
+  > 5. 把volumeSourcetianjin到安装在pod的每个容器中，挂在在/var/run/secrets/kubenetes.io/serviceaccount
+
+- Token Controller
+
+  > 
+
+- Service Account Controller
+
+  > Service Account COntroller在namespaces里管理ServiceAccount，并确保每个有效的namespaces中都存在一个名为default的ServiceAccount
