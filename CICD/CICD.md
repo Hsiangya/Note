@@ -187,9 +187,7 @@ spec:
 
 # Harbor
 
-## 官网安装
-
-## helm安装
+## 通过helm安装
 
 ```bash
 # 添加存储仓库
@@ -254,6 +252,230 @@ helm upgrade harbor harbor/harbor -f values.yaml -n harbor
 # 卸载
 helm uninstall harbor -n harbor
 ```
+
+# SonarQube
+
+- 配置pgsql
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: sonar
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "local-disk-retain"
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-sonar
+  namespace: sonar
+spec:
+  replicas: 1
+  selector:
+    matchLabels: 
+      app: postgres-sonar
+  template:
+    metadata:
+      labels: 
+        app: postgres-sonar
+    spec:
+      containers:
+      - name: postgres-sonar
+        image: postgres:14.2
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "sonarDB"
+        - name: POSTGRES_USER
+          value: "sonarUser"
+        - name: POSTGRES_PASSWORD
+          value: "123456"
+        volumeMounts:
+          - name: data
+            mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-sonar
+  namespace: sonar
+  labels:
+    app: postgres-sonar
+spec:
+  type: NodePort
+  ports:
+  - name: postgres-sonar
+    port: 5432
+    protocol: TCP
+  selector:
+    app: postgres-sonar
+```
+
+- 配置sonar
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data
+  namespace: sonar
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: "local-disk-retain"
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+  namespace: sonar
+  labels:
+    app: sonarqube
+spec:
+  replicas: 1
+  selector:
+    matchLabels: 
+      app: sonarqube
+  template:
+    metadata:
+      labels: 
+        app: sonarqube
+    spec:
+      initContainers:
+      - name: init-sysctl
+        image: busybox:1.28.4
+        command: ["sysctl", "-w", "vm.max_map_count=262144"]
+        securityContext:
+          privileged: true
+      containers:
+      - name: sonarqube
+        image: sonarqube
+        ports:
+        - containerPort: 9000
+        env:
+        - name: SONARQUBE_JDBC_USERNAME
+          value: "sonarUser"
+        - name: SONARQUBE_JDBC_PASSWORD
+          value: "123456"
+        - name: SONARQUBE_JDBC_URL
+          value: "jdbc:postgresql://postgres-sonar:5432/sonarDB"
+        livenessProbe:
+          httpGet:
+            path: /sessions/new
+            port: 9000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /sessions/new
+            port: 9000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          failureThreshold: 6
+        volumeMounts:
+        - mountPath: /opt/sonarqube/conf
+          name: data
+        - mountPath: /opt/sonarqube/data
+          name: data
+        - mountPath: /opt/sonarqube/extensions
+          name: data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: sonarqube-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube
+  namespace: sonar
+  labels:
+    app: sonarqube
+spec:
+  type: NodePort
+  ports:
+  - name: sonarqube
+    port: 9000
+    targetPort: 9000
+    protocol: TCP
+  selector:
+    app: sonarqube
+
+```
+
+- 创建sonar pv
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: sonarqube-data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: "local-disk-retain"
+  local:
+    path: /opt/k8s/sonarQube/sonar-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master
+```
+
+- 创建sonar pv
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: "local-disk-retain"
+  local:
+    path: /opt/k8s/sonarQube/pgsql-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - master
+
+
+```
+
+- 启动：`kubectl apply -f xxx.yaml xxx.yaml`
+- sonar默认帐号密码：`admin admin`
 
 # Jenkins
 
