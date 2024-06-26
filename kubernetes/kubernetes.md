@@ -956,11 +956,9 @@ spec:
   - Exact：精确匹配，url需要与path完全匹配上，且区分大小写
   - Prefix：前缀匹配，与`/`作为分 隔符来进行前缀匹配
 
-# 配置与存储
+# 配置
 
-## 配置管理
-
-### ConfigMap
+## ConfigMap
 
 创建：使用`kubectl create cofigmap -h` 查看示例，构建configmap对象
 
@@ -982,17 +980,17 @@ kubectl create configmap my-config --from-literal=key1=config1 --from-literal=ke
 
 ![image-20240619231521040](./assets/image-20240619231521040.png)
 
-### Secret
+## Secret
 
 基于值的形式创建：![image-20240620205720796](./assets/image-20240620205720796.png)
 
-### SubPath
+## SubPath
 
 用于解决configmap数据挂在的时候其他文件被覆盖的问题
 
 ![image-20240620223200181](./assets/image-20240620223200181.png)
 
-### 配置的热更新
+## 配置的热更新
 
 通常会将项目的配置文件作为configmap然后挂在到pod，更新configmap中的配置时：
 
@@ -1030,7 +1028,7 @@ kubectl create cm --from-file=<path> --dry-run -o yaml | kubectl replace -f-
 - `-f-`表示接受控制台的输出作为该命令的输入
 - `--dry -run`：会将配置文件打印出来 不会传递给apiserver
 
-### 不可变secret和configmap
+## 不可变secret和configmap
 
 对于一些敏感文件，上线后不允许修改，此时在配置configmap时设置`spec.immutable`为` true`来禁止修改，配置与containers同级![image-20240620230503702](./assets/image-20240620230503702.png)
 
@@ -1038,9 +1036,9 @@ kubectl create cm --from-file=<path> --dry-run -o yaml | kubectl replace -f-
 kubectl edit cm <name>
 ```
 
-## 持久化存储
+# 持久化存储
 
-### Volumes
+## Volumes
 
 - HostPath：将节点上的文件或目录挂在到Pod上，此时目录会变成持久化存储目录，即使Pod被删除后重启，也可以重新加载到该目录，该目录下的文件不会丢失
 
@@ -1056,7 +1054,7 @@ kubectl edit cm <name>
 
 > 存在的意义就是同一个Pod中多个容器共享数据，数据自能做共享，不能持久化
 
-### NFS挂载
+## NFS挂载
 
 nfs卷能将NFS（网络文件系统）挂在到Pod中，不像emptyDir那样会在删除Pod的同时也会被删除，nfs卷的内容在删除Pod时会被保存，卷只是被卸载。这意味着nfs卷可以被预先填充数据，并且这些数据可以在Pod之间共享
 
@@ -1086,11 +1084,21 @@ spec：
       readOnly: false
 ```
 
-### PV与PVC
+Kubernetes 不包含内部 NFS 驱动。需要使用外部驱动为 NFS 创建 StorageClass，https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+
+```bash
+# 添加仓库并安装
+helm repo add nfs-subdir-external-provisioner https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
+helm install nfs-subdir-external-provisioner nfs-subdir-external-provisioner/nfs-subdir-external-provisioner \
+    --set nfs.server=127.0.0.7 \
+    --set nfs.path=/opt/k8s/nfs_data
+```
+
+
+
+## PV与PVC生命周期
 
 ![image-20240621105352432](./assets/image-20240621105352432.png)
-
-#### 生命周期
 
 **构建:**
 
@@ -1126,7 +1134,7 @@ spec：
   >
   > 如果下层的卷插件支持，挥手策略Recycle会在卷上执行一些基本的擦出（rm -rf /thevolume/*）操作，之后b允许该卷用于新的PVC申领
 
-#### PV
+## PV
 
 状态：
 
@@ -1137,17 +1145,25 @@ spec：
 
 ![image-20240621120014462](./assets/image-20240621120014462.png)
 
-#### PVC
+## PVC
 
 ![image-20240621121754657](./assets/image-20240621121754657.png)
 
-### storageClass
+## storageClass
 
 制备器（Provisioner）：每个StorageClass都有一个制备器（Provisioner），用来决定使用哪个卷插件制备PV
 
 ![image-20240621131829265](./assets/image-20240621131829265.png)
 
 ![image-20240621134526551](./assets/image-20240621134526551.png)
+
+## 构建NFS与PV
+
+```Bash
+# 查看集群中的制备器
+```
+
+
 
 # 高级调度
 

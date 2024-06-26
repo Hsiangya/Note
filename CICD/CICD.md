@@ -479,36 +479,233 @@ spec:
 
 # Jenkins
 
-## 基础概念
-
-### 安装
+## 安装
 
 ```bash
-# 拉取镜像
-sudo docker pull jenkins/jenkins:jdk17
+# 添加仓库
+helm repo add jenkins https://charts.jenkins.io
+helm repo update
 
-# 运行jenkins
-sudo docker run -d \
-  -u root \
-  --name jenkins \
-  -p 8080:8080 \
-  -p 50000:50000 \
-  -v /opt/cluster/jenkins/jenkins1/jenkins_home:/var/jenkins_home \
-  --restart always \
-  jenkins/jenkins:jdk17
+sudo helm search repo jenkins
+sudo helm search repo jenkins--versions
 
-# 访问8080并查看初始密码，进入之后修改访问密码
-sudo cat secrets/initialAdminPassword
-
+# 创建命名空间
+kubectl create ns jenkins
+helm show values jenkins/jenkins > values.yaml
 ```
 
-### 插件安装
+- 编辑jenkins.yaml文件
+
+```yaml
+# 编辑PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-pv
+spec:
+  storageClassName: local-disk-retain # Local PV
+  capacity:
+    storage: 100Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  local:
+    path: /opt/k8s/jenkins/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - master
+---
+# PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+  namespace: jenkins
+spec:
+  storageClassName: local
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+
+
+# 权限配置
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins
+rules:
+  # 对 deployments 和 replicasets 的权限
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 ingresses 的权限 (注意将 extensions 改为 networking.k8s.io 对应新的 API 组)
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 services 的权限
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 pods 和 pods 相关操作的权限
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "pods/portforward"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  # 对 events 的权限
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # 对 secrets 的权限
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+    
+    
+---
+# jenkins应用
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      serviceAccount: jenkins
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /var/jenkins_home"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: jenkinshome
+              mountPath: /var/jenkins_home
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins:lts
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: JAVA_OPTS
+            value: -Dhudson.model.DownloadService.noSignatureCheck=true
+          ports:
+            - containerPort: 8080
+              name: web
+              protocol: TCP
+            - containerPort: 50000
+              name: agent
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 1500m
+              memory: 4096Mi
+            requests:
+              cpu: 1500m
+              memory: 2048Mi
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: jenkinshome
+              mountPath: /var/jenkins_home
+      volumes:
+        - name: jenkinshome
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: jenkins
+  labels:
+    app: jenkins
+spec:
+  selector:
+    app: jenkins
+  ports:
+    - name: web
+      port: 8080
+      targetPort: web
+    - name: agent
+      port: 50000
+      targetPort: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: hsiangya.jenkins.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jenkins
+            port:
+              number: 8080
+```
+
+- 获取管理员帐号密码
+
+  ```bash
+  kubectl exec -it jenkins-5f9f566d9c-mbf9z -n jenkins -- cat /var/jenkins_home/secrets/initialAdminPassword
+  ```
+
+- 修改时区：Manage Jenkins-->Script console
+
+  ```bash
+  System.setProperty('org.apache.commons.jelly.tags.fmt.timeZone','Asia/Shanghai')
+  ```
+
+## 插件安装
 
 - 修改插件下载源：可以提升下载速度
 - 在页面上导入jenkins插件
 - 在服务器上进行插件迁移
 
-### 配置文件说明
+## 配置文件说明
 
 - config.xml：主配置
 - jenkins.telemetry.Correlator.xml  
@@ -524,14 +721,4 @@ sudo cat secrets/initialAdminPassword
 -  nodeMonitors.xml                  
 - secret.key.not-so-secret  
 - userContent
-
-### 修改时区
-
-- Manage Jenkins-->Script console
-
-```bash
-System.setProperty('org.apache.commons.jelly.tags.fmt.timeZone','Asia/Shanghai')
-```
-
-### 构建job
 
