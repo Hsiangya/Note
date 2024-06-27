@@ -699,11 +699,27 @@ spec:
   System.setProperty('org.apache.commons.jelly.tags.fmt.timeZone','Asia/Shanghai')
   ```
 
-## 插件安装
+**安装插件**
 
-- 修改插件下载源：可以提升下载速度
-- 在页面上导入jenkins插件
-- 在服务器上进行插件迁移
+> 插件安装速度过慢可更换URL站点：`http://mirror.esuni.jp/jenkins/updates/update-center.json`
+
+- Build Authorization Token
+- Gitlab
+- SonarQube Scanner
+- Node and Label paramter
+- Kubernetes
+
+**配置sonarqube**
+
+- name：sonarqube
+
+- server url：`http://sonarqube.sonar:9000`kubernetes集群内可以通过svcName.namespace:port直接访问
+
+- Server authentication token：
+
+  >  访问sonarqube web 点击当前账户--我的帐号---安全-生成令牌，将其添加到jenkins全局凭据中
+  >
+  > ![image-20240627230314769](./assets/image-20240627230314769.png)
 
 ## 配置文件说明
 
