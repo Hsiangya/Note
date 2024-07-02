@@ -955,3 +955,15 @@ spec:
 - secret.key.not-so-secret  
 - userContent
 
+# Nerdctl
+
+github：`https://developer.aliyun.com/article/1094835`
+
+```bash
+# 下载并安装
+wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-amd64.tar.gz
+tar -zxvf nerdctl-1.7.6-linux-amd64.tar.gz
+sudo mv nerdctl /usr/local/bin/
+nerdctl --version
+```
+
