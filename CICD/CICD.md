@@ -959,11 +959,22 @@ spec:
 
 github：`https://developer.aliyun.com/article/1094835`
 
+github：`https://github.com/moby/buildkit`
+
 ```bash
-# 下载并安装
+# 下载并安装nerdctl
 wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-amd64.tar.gz
 tar -zxvf nerdctl-1.7.6-linux-amd64.tar.gz
 sudo mv nerdctl /usr/local/bin/
 nerdctl --version
+
+# 下载anzhaungbuildkit
+wget https://github.com/moby/buildkit/releases/download/v0.14.1/buildkit-v0.14.1.linux-amd64.tar.gz
+tar -zxvf buildkit-v0.14.1.linux-amd64.tar.gz
+mv bin/* /usr/local/bin
+buildkitd &
+
+# 构建镜像
+nerdctl build -t snowflake:1.0 /opt/snowflake
 ```
 
