@@ -1,0 +1,105 @@
+syntax = "proto3";
+option go_package = "growth/pb";
+
+package UserGrowth;
+
+// 服务
+service UserCoin{
+  // 获取所有的积分任务列表
+  rpc ListTasks(ListTasksRequest) returns (ListTasksReply){}
+  // 获取用户的积分信息
+  rpc UserCoinInfo(UserCoinInfoRequest) returns (UserCoinInfoReply){}
+  // 获取用户的积分明细列表
+  rpc UserCoinDetails(UserCoinDetailsRequest) returns (UserCoinDetailsReply){}
+  // 调整用户积分-奖励和惩罚都是用这个接口
+  rpc UserCoinChange(UserCoinChangeRequest) returns (UserCoinChangeReply){}
+}
+
+service UserGrade {
+  // 获取所有的等级信息列表
+  rpc ListGrades(ListGradesRequest) returns (ListGradesReply){}
+  // 获取等级的特权列表
+  rpc ListGradePrivileges(ListGradePrivilegesRequest) returns (ListGradePrivilegesReply){}
+  // 检查用户是否有某个产品的特权
+  rpc CheckUserPrivilege(CheckUserPrivilegeRequest) returns (CheckUserPrivilegeReply){}
+  // 获取用户的等级信息
+  rpc UserGradeInfo(UserGradeInfoRequest) returns (UserGradeInfoReply){}
+  // 调整用户的等级成长值
+  rpc UserGradeChange(UserGradeChangeRequest) returns (UserGradeChangeReply){}
+}
+
+// 请求和响应消息
+message ListTasksRequest{}
+message ListTasksReply{
+  repeated TbCoinDetail dataLIst = 1;
+}
+message UserCoinInfoRequest{
+  int32 uid = 1;
+}
+message UserCoinInfoReply{
+  TbCoinUser data = 1;
+}
+message UserCoinDetailsRequest{
+  int32 uid = 1;
+  int32 page = 2;
+  int32 size = 3;
+}
+message UserCoinDetailsReply{
+  repeated TbCoinDetail dataList = 1;
+  int32 total = 2;
+}
+message UserCoinChangeRequest{
+  int32 uid = 1;
+  string task = 2;
+  int32 coin = 3;
+}
+message UserCoinChangeReply{
+  TbCoinUser user = 1;
+}
+
+message ListGradesRequest{}
+message ListGradesReply{
+  repeated TbGradeInfo datalist = 1;
+}
+message ListGradePrivilegesRequest{
+  int32 grade_id = 1;
+}
+message ListGradePrivilegesReply{
+  repeated TbGradePrivilege datalist = 1;
+}
+message CheckUserPrivilegeRequest{
+  int32 uid = 1;
+  string product = 2;
+  string function = 3;
+}
+message CheckUserPrivilegeReply{
+  bool data = 1;
+}
+message UserGradeInfoRequest{
+  int32 uid = 1;
+}
+message UserGradeInfoReply{
+  TbGradeInfo data = 1;
+}
+message UserGradeChangeRequest{
+  int32 uid = 1;
+  int32 score = 2;
+}
+message UserGradeChangeReply{
+  TbGradeUser data = 1;
+}
+
+
+// 数据表模型消息
+message TbCoinDetail{
+  int32 id = 1;
+  int32 uid = 2;
+  int32 task_id = 3;
+  int32 coin = 4;
+  string sys_created = 5;
+  string sys_updated = 6;
+}
+message TbCoinUser{}
+message TbGradeInfo{}
+message TbGradePrivilege{}
+message TbGradeUser{}
