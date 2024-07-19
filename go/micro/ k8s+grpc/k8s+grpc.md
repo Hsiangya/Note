@@ -256,7 +256,7 @@ import (
 )
 
 func main() {
-	lis, err := net.Listen("tcp", "80")
+	lis, err := net.Listen("tcp", "127.0.0.1:7789")
 	if err != nil {
 		log.Fatalf("failed to listen: %s", err.Error())
 	}
@@ -285,6 +285,7 @@ import (
 	"context"
 	"flag"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"growth/pb"
 	"log"
 	"time"
@@ -292,8 +293,11 @@ import (
 
 func main() {
 	// 连接到服务
-	add := flag.String("addr", "localhost:80", "the address to connect to")
-	conn, err := grpc.NewClient(*add)
+	add := flag.String("addr", "localhost:7789", "the address to connect to")
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+	conn, err := grpc.NewClient(*add, opts...)
 	if err != nil {
 		log.Fatalf("did not connect：%v", err)
 	}
@@ -310,7 +314,7 @@ func main() {
 	// 测试1：UserCoinServer.ListTasks
 	r1, err1 := cCoin.ListTasks(ctx, &pb.ListTasksRequest{})
 	if err1 != nil {
-		log.Printf("cCoin.ListTasks error=%v\n", err)
+		log.Printf("cCoin.ListTasks error=%v\n", err1)
 	} else {
 		log.Printf("cCoin.ListTasks:%+v\n", r1.GetDataLIst())
 	}
@@ -318,12 +322,18 @@ func main() {
 	// 测试2
 	r2, err2 := cGrade.ListGrades(ctx, &pb.ListGradesRequest{})
 	if err2 != nil {
-		log.Printf("cCoin.ListGrades error=%v\n", err)
+		log.Printf("cCoin.ListGrades error=%v\n", err2)
 	} else {
 		log.Printf("cCoin.ListTasks:%+v\n", r2.GetDatalist())
 	}
+
 }
 ```
 
+## 数据层、服务层代码
 
+1. 安装xorm，生成数据模型(`./models`)
+2. 服务的数据库配置和连接示例
+3. 实现数据层封装(`./dao`)
+4. 实现服务层封装（`./server`）
 

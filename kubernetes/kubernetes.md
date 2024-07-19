@@ -1388,5 +1388,205 @@ spec:
 kubectl delete --ignore-not-found=true -f manifests/ -f manifests/setup
 ```
 
+# 安装插件
 
+## NFS
+
+**服务器按转nfs服务**
+
+- 安装nfs服务器
+
+```bash
+sudo apt update
+sudo apt install nfs-kernel-server
+```
+
+- 创建一个目录，用于通过NFS共享目录数据
+
+```bash
+sudo mkdir -p /opt/k8s/nfs_data
+sudo chown nobody:nogroup /opt/k8s/nfs_data
+```
+
+- 编辑`/etc/exports`配置NFS导出文件 ，添加如下信息
+
+```bash
+/opt/k8s/nfs_data *(rw,sync,no_subtree_check,no_root_squash)
+```
+
+> - `*`：表示所有人可访问
+
+- 使文件命令生效
+
+```bash
+sudo exportfs -ra
+sudo systemctl status nfs-kernel-server # 验证服务是否运行
+```
+
+- 其他服务器挂在该nfs数据盘
+
+  > 这里使用本机电脑进行测试
+
+```bash
+sudo mount -t nfs <nfs-server-ip>:/opt/k8s/nfs_data /mnt
+sudo mount -t nfs 127.0.0.1:/opt/k8s/nfs_data /mnt
+```
+
+**配置资源：**
+
+- 编辑rbac资源文件：`nfs-provisioner-rbac.yaml`
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nfs-client-provisioner-runner
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "update"]
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "update", "patch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: run-nfs-client-provisioner
+subjects:
+- kind: ServiceAccount
+  name: nfs-client-provisioner
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: nfs-client-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-nfs-client-provisioner
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: leader-locking-nfs-client-provisioner
+subjects:
+- kind: ServiceAccount
+  name: nfs-client-provisioner
+  # replace with namespace where provisioner is deployed
+  namespace: kube-system
+roleRef:
+  kind: Role
+  name: leader-locking-nfs-client-provisioner
+```
+
+- 编写storageclass资源文件：`nfs-storage-class-retain.yaml`
+
+```yaml
+apiVersion: storage.k8s.io/v1 # API的版本
+kind: StorageClass # 资源名称
+metadata:
+  name: managed-nfs-storage # 定义的元信息
+provisioner: fuseim.pri/ifs  # 制备器名称，需要与pod中暴露的一致
+parameters:
+  archiveOnDelete: "false" # 是否存档，相同的PV会重新构建一份新的 不会删除旧的
+reclaimPolicy: Retain # 回收策略
+volumeBindingMode: Immediate 
+```
+
+- 编写制备器pod资源文件：`nfs-provisioner-deployment.yaml`
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nfs-client-provisioner # 名称
+  namespace: kube-system # 命名空间
+---
+kind: Deployment # 资源类型
+apiVersion: apps/v1
+metadata:
+  namespace: kube-system # 所属命名空间
+  name: nfs-client-provisioner
+spec:
+  replicas: 1 # 副本数
+  strategy:
+    type: Recreate # 更新策略
+  selector:
+    matchLabels:
+      app: nfs-client-provisioner # 选择器
+  template: # 模板相关配置
+    metadata:
+      labels:
+        app: nfs-client-provisioner
+    spec: 
+      serviceAccount: nfs-client-provisioner #  期望使用的帐号,调用API必须需要权限
+      containers:
+        - name: nfs-client-provisioner
+#          image: quay.io/external_storage/nfs-client-provisioner:latest
+          image: registry.cn-beijing.aliyuncs.com/pylixm/nfs-subdir-external-provisioner:v4.0.0
+          volumeMounts:
+            - name: nfs-client-root # 加载存储卷
+              mountPath: /persistentvolumes # 容器内挂在的目录
+          env:
+            - name: PROVISIONER_NAME
+              value: fuseim.pri/ifs # 需要与前面的制备器名字一致
+            - name: NFS_SERVER
+              value: 192.168.1.7
+            - name: NFS_PATH
+              value: /opt/k8s/nfs_data # 关联到nfs服务器的路径
+      volumes: # 容器卷
+        - name: nfs-client-root
+          nfs:
+            server: 192.168.1.7
+            path: /opt/k8s/nfs_data
+```
+
+- 初始化文件
+
+```bash
+kubectl apply -f nfs-provisioner-rbac.yaml # 创建rbac
+kubectl apply -f nfs-provisioner-deployment.yaml # 创建deployment
+kubectl apply -f nfs-storage-class-retain.yaml # 创建class
+kubectl get sc
+kubectl get po -n kube-system|grep nfs
+```
+
+- 创建测试文件：`auto-pv-test-pvc.yaml`
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: auto-pv-test-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 300Mi
+  storageClassName: managed-nfs-storage
+```
+
+- 运行测试文件
+
+```bash
+kubectl apply -f auto-pv-test-pvc.yaml
+kubectl get pvc # 查看pvc是否被创建
+kubectl get pv
+```
 

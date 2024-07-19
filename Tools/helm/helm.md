@@ -159,3 +159,18 @@ kubectl delete pvc <pvc name1> <pvc name2> ...
 
 - 回退到制定版本：`helm rollback <name> <revision>`
 
+##  软件安装
+
+### mysql
+
+`https://dev.mysql.com/doc/mysql-operator/en/mysql-operator-installation-helm.html`
+
+```bash
+# 添加镜像仓库
+helm repo add mysql-operator https://mysql.github.io/mysql-operator/
+helm repo update
+helm search repo mysql
+# 配置拉取到本地
+helm pull bitnami/mysql
+```
+
