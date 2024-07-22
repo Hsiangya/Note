@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-k8s-mysql
+  namespace: grpc-k8s
+  labels:
+    app: grpc-k8s-mysql
+spec:
+  type: NodePort
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+    # nodePort: 30036  手动制定端口号，如果不指定则由k8s自己创建
+  selector:
+    app: mysql

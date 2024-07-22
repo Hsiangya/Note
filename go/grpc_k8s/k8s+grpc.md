@@ -326,7 +326,6 @@ func main() {
 	} else {
 		log.Printf("cCoin.ListTasks:%+v\n", r2.GetDatalist())
 	}
-
 }
 ```
 

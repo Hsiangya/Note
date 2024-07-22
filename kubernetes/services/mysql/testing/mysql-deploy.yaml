@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: grpc-k8s
-  name: mysql
+  namespace: testing
+  name: testing-ysql
   labels:
     app: mysql
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mysql
+      app: testingmysql
   template:
     metadata:
       labels:
-        app: mysql
+        app: testing-mysql
     spec:     
       containers:
       - name: mysql
@@ -57,10 +57,10 @@ spec:
       volumes:
       - name: data
         persistentVolumeClaim:
-          claimName: grpc-k8s-mysql-pvc # 改为适当的PVC名称，确保它配置了managed-nfs-storage
+          claimName: testing-mysql-pvc # 改为适当的PVC名称，确保它配置了managed-nfs-storage
       - name: config      
         configMap:
-          name: mysql-config
+          name: 
       - name: localtime
         hostPath:
           type: File
