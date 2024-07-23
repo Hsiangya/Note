@@ -3,7 +3,7 @@ package dao
 import (
 	"context"
 	"growth/comm"
-	"growth/db_helper"
+	"growth/dbhelper"
 	"growth/models"
 	"xorm.io/xorm"
 )
@@ -15,7 +15,7 @@ type CoinDetailDao struct {
 
 func NewCoinDetailDao(ctx context.Context) *CoinDetailDao {
 	return &CoinDetailDao{
-		db:  db_helper.GetDb(),
+		db:  dbhelper.GetDb(),
 		ctx: ctx,
 	}
 }

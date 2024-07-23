@@ -1,4 +1,4 @@
-package db_helper
+package dbhelper
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 
 var dbEngine *xorm.Engine
 
-func initDb() {
+func InitDb() {
 	if dbEngine != nil {
 		return
 	}
