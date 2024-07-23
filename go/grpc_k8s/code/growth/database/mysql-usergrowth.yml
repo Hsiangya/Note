@@ -3,8 +3,8 @@ kind: reverse
 name: user_growth
 source:
   database: mysql
-  conn_str: "hsiangya:9kX%3DAwM%25raN3g%3FMW@tcp(localhost:31766)/user_growth?charset=utf8"
+  conn_str: "hsiangya:9kX=AwM%raN3g?MW@tcp(localhost:31766)/user_growth?charset=utf8"
 targets:
   - type: codes
     language: golang
-    output_dir: ../models/user_growth/
+    output_dir: ../models/

@@ -336,3 +336,34 @@ func main() {
 3. 实现数据层封装(`./dao`)
 4. 实现服务层封装（`./server`）
 
+- 安装依赖 cmd：`https://github.com/go-xorm/cmd`
+
+```bash
+go get xorm.io/xorm
+go get xorm.io/builder
+go get xorm.io/reverse
+go install xorm.io/reverse@latest
+go get -u github.com/go-sql-driver/mysql
+```
+
+- 编写数据库连接文件
+
+```yml
+---
+kind: reverse
+name: user_growth
+source:
+  database: mysql
+  conn_str: "hsiangya:9kX=AwM%raN3g?MW@tcp(localhost:31766)/user_growth?charset=utf8"
+targets:
+  - type: codes
+    language: golang
+    output_dir: ../models/user_growth/ #  这里依据实际需要生成的目录填写
+```
+
+- 执行reverse命令
+
+```bash
+reverse -f mysql-usergrowth.yml
+```
+
