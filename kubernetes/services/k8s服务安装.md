@@ -228,3 +228,142 @@ kubectl apply -f mysql-service.yaml
 kubectl get svc -n grpc-k8s # 查看服务运行情况
 ```
 
+# Mongo
+
+## 单节点
+
+- 创建配置文件：`mongo-configMap.yml`
+
+```yml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+--- 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: dev
+  name: mongodb-config
+data:
+  mongod.conf: |
+    storage:
+      dbPath: /data/db
+    net:
+      bindIp: 0.0.0.0
+      port: 27017
+    security:
+      authorization: "enabled"
+```
+
+- 创建secret文件：`mongo-secret.yml`
+
+  > - base64编码：`echo -n 'your_string_here' | base64`
+  > - base64解码：`echo 'base64_encoded_string_here' | base64 --decode`
+
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: dev
+  name: mongodb-secret
+type: Opaque
+data:
+  mongo-root-username: xxxxx= # base64 encoded value of 'rootuser'
+  mongo-root-password: xxxxxx= # base64 encoded value of 'rootpassword'
+```
+
+- 编辑部署文件：`mongo-deployment.yml`
+
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: dev
+  name: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:5.0.28
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+            - name: mongodb-config
+              mountPath: /etc/mongod.conf
+              subPath: mongod.conf
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-root-username
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secret
+                  key: mongo-root-password
+      volumes:
+        - name: mongodb-data
+          persistentVolumeClaim:
+            claimName: mongodb-pvc
+        - name: mongodb-config
+          configMap:
+            name: mongodb-config
+```
+
+- 创建service文件：`mongo-service.yml`
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: dev
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+      # nodePort: 32017  # 不指定k8s默认自动分配
+  selector:
+    app: mongodb
+  type: NodePort
+```
+
+- 创建pvc文件：`mongo-pvc.yml`
+
+```yml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: dev
+  name: mongodb-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: managed-nfs-storage
+```
+
+- 启动服务
+
+```bash
+kubectl apply -f mongo-configMap.yml
+kubectl apply -f mongo-secret.yml
+kubectl apply -f mongo-deployment.yml
+kubectl apply -f mongo-pvc.yml
+kubectl apply -f mongo-service.yml
+```
+

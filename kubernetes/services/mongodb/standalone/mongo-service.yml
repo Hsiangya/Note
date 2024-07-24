@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: dev
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+      # nodePort: 32017  # 不指定k8s默认自动分配
+  selector:
+    app: mongodb
+  type: NodePort
