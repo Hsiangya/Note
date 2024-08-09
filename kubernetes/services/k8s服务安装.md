@@ -1,3 +1,47 @@
+#   证书
+
+- 使用 OpenSSL 生成私钥和 CSR
+
+```bash
+# 创建配置文件 openssl-san.cnf
+[ req ]
+default_bits       = 4096
+prompt             = no
+default_md         = sha256
+req_extensions     = req_ext
+distinguished_name = dn
+
+[ dn ]
+C  = CN
+ST = State
+L  = City
+O  = Organization
+OU = Organizational Unit
+CN = hsiangya.top
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = hsiangya.top
+# DNS.2 = harbor.hsiangya.top
+
+
+# 生成私钥
+openssl genrsa -out hsiangya.key 4096
+
+# 生成证书签名请求 (CSR)
+openssl req -new -key hsiangya.key -out hsiangya.csr -config openssl-san.cnf
+```
+
+- 使用 Keytool 生成私钥和 CSR
+
+```bash
+# 生成密钥库和密钥对
+keytool -genkeypair -alias harboralias -keyalg RSA -keysize 2048 -keystore harbor.hsiangya.top.jks
+
+```
+
 # Mysql
 
 ## helm安装
@@ -228,6 +272,89 @@ kubectl apply -f mysql-service.yaml
 kubectl get svc -n grpc-k8s # 查看服务运行情况
 ```
 
+### 主从
+
+- 创建configMap：`configMap.yaml `
+
+  > 配置主库能够将复制日志提供给从库，并且从库拒绝任何不是通过复制进行的写操作
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-replica
+  labels:
+    app: mysql
+  namespace: dev
+data:
+  primary.cnf: |
+    # Apply this config only on the primary.
+    [mysql]
+    default-character-set=utf8mb4
+    [mysqld]
+    log-bin
+    character-set-server=utf8mb4
+    [client]
+    default-character-set=utf8mb4
+
+  replica.cnf: |
+    # Apply this config only on replicas.
+    [mysql]
+    default-character-set=utf8mb4
+    [mysqld]
+    super-read-only    
+    character-set-server=utf8mb4
+    [client]
+    default-character-set=utf8mb4
+```
+
+- 编写service：`service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-replica
+  labels:
+    app: mysql
+  namespace: dev
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+  clusterIP: None
+  selector:
+    app: mysql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-read
+  labels:
+    app: mysql
+  namespace: dev
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+  selector:
+    app: mysql
+```
+
+- 运行文件
+
+```bash
+kubectl apply -f configMap.yaml
+kubectl apply -f service.yaml
+kubectl get configMap -n dev
+```
+
+
+
+
+
+
+
 # Mongo
 
 ## 单节点
@@ -365,5 +492,44 @@ kubectl apply -f mongo-secret.yml
 kubectl apply -f mongo-deployment.yml
 kubectl apply -f mongo-pvc.yml
 kubectl apply -f mongo-service.yml
+```
+
+# Harbor
+
+## 从helm安装
+
+- 添加存储仓、拉取配置、创建基础配置
+
+```bash
+# 添加存储仓库
+helm repo add harbor https://helm.goharbor.io
+helm repo list
+helm search repo harbor -l |  grep harbor/harbor  | head  -4
+
+# 拉取harbor
+helm pull harbor/harbor --version 1.15.0
+tar zxvf harbor-1.15.0.tgz
+
+# 创建一个namespace
+kubectl create namespace harbor
+
+# 创建ssl证书
+kubectl create secret tls harbor-cert --cert=/opt/certs/harbor.hsiangya.top.pem --key=/opt/certs/hsiangya.key -n harbor
+
+# 编辑配置我呢见
+cd harbor
+vim values.yaml
+
+```
+
+- 修改配置文件：`values.yaml`
+  - persistentVolumeClaim：数据卷挂载 指定`storageClass`(通过`kubectl get storageClass`查询)
+  - harborAdminPassword：配置管理员密码
+  - exppos：secretName,证书配置信息与域名
+
+- 运行
+
+```bash
+helm install harbor . -f values.yaml -n harbor 
 ```
 
