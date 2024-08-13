@@ -1,4 +1,6 @@
-#   证书
+# 相关服务
+
+## 证书申请
 
 - 使用 OpenSSL 生成私钥和 CSR
 
@@ -41,6 +43,10 @@ openssl req -new -key hsiangya.key -out hsiangya.csr -config openssl-san.cnf
 keytool -genkeypair -alias harboralias -keyalg RSA -keysize 2048 -keystore harbor.hsiangya.top.jks
 
 ```
+
+## 镜像打包工具
+
+
 
 # Mysql
 
@@ -531,5 +537,46 @@ vim values.yaml
 
 ```bash
 helm install harbor . -f values.yaml -n harbor 
+```
+
+# Jenkins
+
+## docker 安装
+
+- 拉取docker 镜像
+
+```bash
+docker pull jenkins/jenkins
+```
+
+- 生成ssh
+
+  > -C：注释说明，通常以邮箱格式，也可以为随机字符串
+  >
+  > 生成ssh密钥会提示输入密码：jenkins
+
+```bash
+mkdir -p /opt/jenkins/ssh
+ssh-keygen -t rsa -b 4096 -C "jenkins@example.com" -f /opt/jenkins/ssh/id_rsa
+chmod 700 /opt/jenkins/ssh
+chmod 600 /opt/jenkins/ssh/id_rsa*
+ssh-copy-id -i /opt/jenkins/ssh/id_rsa.pub user@ipaddress
+
+# 指定私钥路径进行连接
+ssh -i /opt/jenkins/ssh/id_rsa user@ipaddress
+```
+
+- 运行
+
+```bash
+sudo chown -R 1000:1000 /opt/jenkins/data
+sudo chown -R 1000:1000 /opt/jenkins/ssh
+
+docker run -d --name jenkins \
+  -p 8379:8080 -p 50000:50000 \
+  -v /opt/jenkins/data:/var/jenkins_home \
+  -v /opt/jenkins/ssh:/var/jenkins_home/.ssh \
+  -u 1000:1000 \
+  jenkins/jenkins
 ```
 
