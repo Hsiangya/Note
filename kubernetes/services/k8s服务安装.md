@@ -46,8 +46,6 @@ keytool -genkeypair -alias harboralias -keyalg RSA -keysize 2048 -keystore harbo
 
 ## 镜像打包工具
 
-
-
 # Mysql
 
 ## helm安装
@@ -541,13 +539,23 @@ helm install harbor . -f values.yaml -n harbor
 
 # Jenkins
 
-## docker 安装
+## 镜像下载保存
 
-- 拉取docker 镜像
+- 通过containerd下载镜像并导出
 
 ```bash
-docker pull jenkins/jenkins
+sudo ctr images pull docker.io/jenkins/jenkins:2.430-jdk21
+sudo ctr images list | grep jenkins
+sudo ctr images export jenkins2.430-jdk21.tar docker.io/jenkins/jenkins:2.430-jdk21
 ```
+
+- 从文件加载镜像
+
+```bash
+docker load -i jenkins2.430-jdk21.tar
+```
+
+## docker 安装
 
 - 生成ssh
 
@@ -572,11 +580,39 @@ ssh -i /opt/jenkins/ssh/id_rsa user@ipaddress
 sudo chown -R 1000:1000 /opt/jenkins/data
 sudo chown -R 1000:1000 /opt/jenkins/ssh
 
+
 docker run -d --name jenkins \
+  --restart always \
   -p 8379:8080 -p 50000:50000 \
   -v /opt/jenkins/data:/var/jenkins_home \
   -v /opt/jenkins/ssh:/var/jenkins_home/.ssh \
   -u 1000:1000 \
-  jenkins/jenkins
+  jenkins/jenkins:2.430-jdk21
 ```
+
+## 基础设置
+
+- 汉化
+  1. Manage Jenkins --> Manage Plugins ---> Locale插件
+  2. Manage Jenkins --> Configure System --> Locale选项输入zh_CN
+
+- 安装git插件
+  1. git
+  2. gitlab
+  3. Publish Over SSH
+  4. Monitoring：监控Jenkins所消耗的系统资源
+  5. Maven Integration
+  6. ansible
+
+- 配置信息
+  1. Manage Jenkins --> Tools：配置git 等相关信息与路径
+  2. Manage Jenkins --> system：配置ssh等相关信息
+
+
+
+
+
+
+
+
 
