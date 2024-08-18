@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: jenkins
+  labels:
+    app: jenkins
+spec:
+  selector:
+    app: jenkins
+  ports:
+    - name: web
+      port: 8080
+      targetPort: web
+    - name: agent
+      port: 50000
+      targetPort: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - jenkins.hsiangya.top
+    secretName: jenkins-tls  # 指向TLS secret
+  rules:
+  - host: jenkins.hsiangya.top
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jenkins
+            port:
+              number: 8080

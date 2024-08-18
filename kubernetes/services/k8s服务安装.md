@@ -590,6 +590,203 @@ docker run -d --name jenkins \
   jenkins/jenkins:2.430-jdk21
 ```
 
+## 通过k8s配置文件安装
+
+- 权限配置文件：`permission.yaml`
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+  namespace: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins
+rules:
+  # 对 deployments 和 replicasets 的权限
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 ingresses 的权限 (注意将 extensions 改为 networking.k8s.io 对应新的 API 组)
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 services 的权限
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "delete", "get", "list", "watch", "patch", "update"]
+  # 对 pods 和 pods 相关操作的权限
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "pods/portforward"]
+    verbs: ["create", "delete", "get", "list", "patch", "update", "watch"]
+  # 对 events 的权限
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # 对 secrets 的权限
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+    namespace: jenkins
+```
+
+- 构建PVC文件：`jenkins-pvc.yaml`
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+  namespace: jenkins
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: managed-nfs-storage
+```
+
+- deployment配置：`jenkins.yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      serviceAccount: jenkins
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /var/jenkins_home"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: jenkinshome
+              mountPath: /var/jenkins_home
+      containers:
+        - name: jenkins
+          image: jenkins/jenkins
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: JAVA_OPTS
+            value: -Dhudson.model.DownloadService.noSignatureCheck=true
+          ports:
+            - containerPort: 8080
+              name: web
+              protocol: TCP
+            - containerPort: 50000
+              name: agent
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 1500m
+              memory: 4096Mi
+            requests:
+              cpu: 1500m
+              memory: 2048Mi
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+            failureThreshold: 12
+          volumeMounts:
+            - name: jenkinshome
+              mountPath: /var/jenkins_home
+      volumes:
+        - name: jenkinshome
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
+```
+
+- 配置service：`jenkins-service.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: jenkins
+  labels:
+    app: jenkins
+spec:
+  selector:
+    app: jenkins
+  ports:
+    - name: web
+      port: 8080
+      targetPort: web
+    - name: agent
+      port: 50000
+      targetPort: agent
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - jenkins.hsiangya.top
+    secretName: jenkins-tls  # 指向TLS secret
+  rules:
+  - host: jenkins.hsiangya.top
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: jenkins
+            port:
+              number: 8080
+```
+
+- 部署
+
+```bash
+# 创建证书配置
+kubectl create secret tls jenkins-tls \
+	--cert=/opt/certs/jenkins.hsiangya.top.pem \
+	--key=/opt/certs/jenkins.key \
+	-n jenkins
+
+# 部署
+kubectl apply -f jenkins-permission.yaml
+kubectl apply -f jenkins-pvc.yaml
+kubectl apply -f jenkins.yaml
+kubectl apply -f jenkins-service.yaml
+```
+
 ## 基础设置
 
 - 汉化
@@ -741,4 +938,3 @@ start_new_app() {
 stop_old_app
 start_new_app
 ```
-
