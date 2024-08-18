@@ -608,11 +608,137 @@ docker run -d --name jenkins \
   1. Manage Jenkins --> Tools：配置git 等相关信息与路径
   2. Manage Jenkins --> system：配置ssh等相关信息
 
+## 部署java项目
 
+- 配置相关maven、gitlab、git、ssh等
+- 打包shell
 
+```shell
+# 参数
+version=$1  # 传入的版本号
+app_name="project"  # 项目名称
+workspace="${WORKSPACE}"  # Jenkins 工作空间，或本地路径
+build_number="${BUILD_NUMBER:-manual_build}"  # Jenkins 构建号，或手动构建标识
+backup_dir="${workspace}/bak/${build_number}"  # 备份目录
+target_dir="${workspace}/target"  # 打包输出目录
+jar_name="${app_name}.jar"  # 打包生成的 JAR 文件名
 
+# 步骤 1: 执行 Maven 打包
+echo "Executing Maven build..."
+mvn clean install -Dmaven.test.skip=true -e
 
+# 检查构建是否成功
+if [ $? -ne 0 ]; then
+    echo "Build failed, aborting."
+    exit 1
+fi
 
+# 步骤 2: 创建备份目录
+echo "Creating backup directory: $backup_dir"
+if [ -d "$backup_dir" ]; then
+    echo "Backup directory already exists."
+else
+    mkdir -p "$backup_dir"
+    echo "Backup directory created."
+fi
 
+# 步骤 3: 备份打包生成的 JAR 文件
+echo "Backing up JAR file to $backup_dir"
+\cp -f "$target_dir/$jar_name" "$backup_dir/"
+if [ $? -eq 0 ]; then
+    echo "Backup completed successfully!"
+else
+    echo "Backup failed!"
+    exit 1
+fi
 
+echo "Script execution completed."
+```
+
+-  备份shell
+
+```shell
+ReservedNum=5  # 保留的文件夹数
+FileDir=${WORKSPACE}/bak/  # 备份目录
+date=$(date "+%Y%m%d-%H%M%S")
+
+# 切换到备份目录
+cd $FileDir
+
+# 获取当前目录下的文件夹数量
+FileNum=$(ls -l | grep '^d' | wc -l)
+echo "Current number of backup directories: $FileNum"
+echo "Reserved number of backups: $ReservedNum"
+
+# 当文件夹数量大于保留的数量时，删除最旧的文件夹
+while [ "$FileNum" -gt "$ReservedNum" ]
+do
+    # 获取最旧的目录名
+    OldFile=$(ls -rt | head -1)
+    echo "$date Deleting Directory: $OldFile"
+    
+    if [ -n "$OldFile" ]; then  # 检查OldFile是否为空
+        rm -rf "$FileDir/$OldFile"
+    else
+        echo "No directory found to delete."
+        break
+    fi
+    
+    # 更新文件夹数量
+    FileNum=$(ls -l | grep '^d' | wc -l)
+done
+```
+
+-  远程发送shell
+
+```shell
+date +"%Y-%m-%d %H:%M:%S" 
+set -e
+
+# 配置参数
+APP_DIR="/path/to/project"
+JAVA_CMD="nohup java"
+LOG_FILE="$APP_DIR/run.log"
+JAR_FILE="prject.jar"
+
+# 切换到应用目录
+cd $APP_DIR || { echo "Failed to change directory to $APP_DIR"; exit 1; }
+
+# 检查并停止旧应用
+stop_old_app() {
+    echo "Searching for running instances of $JAR_FILE..."
+    PIDS=$(ps -aux | grep $JAR_FILE | grep -v grep | awk '{print $2}')
+    
+    if [ -z "$PIDS" ]; then
+        echo "No running instances of $JAR_FILE found."
+    else
+        for PID in $PIDS; do
+            echo "Stopping application with PID $PID..."
+            kill $PID || { echo "Failed to kill PID $PID"; exit 1; }
+            echo "Application with PID $PID stopped."
+        done
+    fi
+}
+
+# 启动新应用
+start_new_app() {
+    if [ ! -f $JAR_FILE ]; then
+        echo "File $JAR_FILE not found in $APP_DIR."
+        exit 2
+    fi
+
+    for port in 10000 10001; do
+        JAVA_OPTS="-Dserver.port=$port"
+        LOG_FILE_PORT="${LOG_FILE%.*}_$port.log"
+        echo "Starting application on port $port"
+        $JAVA_CMD $JAVA_OPTS -jar $JAR_FILE > "$LOG_FILE_PORT" 2>&1 &
+        echo "Application started on port $port with PID $!."
+        echo "Logs are being written to $LOG_FILE_PORT."
+    done
+}
+
+# 主逻辑
+stop_old_app
+start_new_app
+```
 
