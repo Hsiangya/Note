@@ -1,0 +1,12 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  namespace: dev
+  name: dev-mysql-pvc
+spec:
+  storageClassName: managed-nfs-storage  # 指定 StorageClass
+  resources:
+    requests:
+      storage: 10Gi  # 设置 pvc 存储资源大小
+  accessModes:
+  - ReadWriteOnce

@@ -118,7 +118,7 @@ show slave status\G;
 
 ## 配置文件安装
 
-### NodePort单体
+### NodePort单体手动构建PVC
 
 - 创建命名空间：`namespace.yaml`
 
@@ -275,6 +275,150 @@ kubectl apply -f mysql-service.yaml
 kubectl get svc -n grpc-k8s # 查看服务运行情况
 ```
 
+### 单体自动构建PVC
+
+- 编辑配置文件：`config.yaml`
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: dev 
+  labels:
+    app: mysql
+data:
+  my.cnf: |-
+    [client]
+    default-character-set=utf8mb4
+    [mysql]
+    default-character-set=utf8mb4
+    [mysqld]
+    max_connections = 2000
+    secure_file_priv=/var/lib/mysql
+    sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+```
+
+- 编辑PVC文件：`pvc.yaml`:
+
+```yaml
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  namespace: dev
+  name: dev-mysql-pvc
+spec:
+  storageClassName: managed-nfs-storage  # 指定 StorageClass
+  resources:
+    requests:
+      storage: 10Gi  # 设置 pvc 存储资源大小
+  accessModes:
+  - ReadWriteOnce
+```
+
+- 编辑deploy文件：`deploy,yaml`
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: dev  # 修改为dev命名空间
+  name: mysql
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0.19
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "password"
+        resources:
+          limits:
+            cpu: 2000m
+            memory: 512Mi
+          requests:
+            cpu: 2000m
+            memory: 512Mi
+        livenessProbe:
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+          exec:
+            command: ["mysqladmin", "-uroot", "-p${MYSQL_ROOT_PASSWORD}", "ping"]
+        readinessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+          exec:
+            command: ["mysqladmin", "-uroot", "-p${MYSQL_ROOT_PASSWORD}", "ping"]
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+        - name: config
+          mountPath: /etc/mysql/conf.d
+        - name: localtime
+          readOnly: true
+          mountPath: /etc/localtime
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: dev-mysql-pvc  # 修改为新的PVC名称
+      - name: config
+        configMap:
+          name: mysql-config
+      - name: localtime
+        hostPath:
+          type: File
+          path: /etc/localtime
+```
+
+- 编辑service配置：`service.yaml`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: dev
+  labels:
+    app: mysql
+spec:
+  type: NodePort
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+    # nodePort: 30306  # 你可以指定一个特定的端口，或者让Kubernetes自动分配
+  selector:
+    app: mysql
+```
+
+- 部署mysql
+
+```bash
+kubectl apply -f config.yaml
+kubectl apply -f pvc.yaml
+kubectl apply -f deploy,yaml
+kubectl apply -f service.yaml
+kubectl get po -n dev
+```
+
 ### 主从
 
 - 创建configMap：`configMap.yaml `
@@ -351,12 +495,6 @@ kubectl apply -f configMap.yaml
 kubectl apply -f service.yaml
 kubectl get configMap -n dev
 ```
-
-
-
-
-
-
 
 # Mongo
 
@@ -948,6 +1086,15 @@ start_new_app
 ```
 
 ## 部署静态文件
+
+- 下载node,并将环境挂载到镜像中
+
+```bash
+wget https://nodejs.org/dist/v21.7.3/node-v21.7.3-linux-x64.tar.xz
+tar -xvf node-v21.7.3-linux-x64.tar.xz
+```
+
+
 
 ```shell
 DATE=$(date +%Y-%m-%d-%H-%M-%S)
