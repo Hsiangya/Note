@@ -149,7 +149,6 @@ data:
     max_connections = 2000
     secure_file_priv=/var/lib/mysql
     sql_mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
-
 ```
 
 - 构建pvc：`mysql-storage.yaml`
@@ -947,3 +946,34 @@ start_new_app() {
 stop_old_app
 start_new_app
 ```
+
+## 部署静态文件
+
+```shell
+DATE=$(date +%Y-%m-%d-%H-%M-%S)
+web_server="10.211.55.12"
+
+get_code(){
+	cd $WORKSPACE && \
+	tar czf /opt/web-${DATE}.tar.gz ./*
+}
+
+scp_web_server(){
+for hosts in $web_server
+do
+	scp /opt/web-${DATE}.tar.gz root@$hosts:/opt/
+	ssh root@$hosts "mkdir -p /code/web-${DATE} && \
+					tar -zxf /opt/web-${DATE}.tar.gz -C	/code/web-${DATE}
+					rm -rf /code/web && \
+					ln -s /code/web-${DATE} /code/web"
+done
+}
+
+deploy(){
+	get_code
+	scp_web_server
+}
+
+deploy
+```
+
