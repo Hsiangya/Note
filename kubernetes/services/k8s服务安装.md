@@ -807,7 +807,16 @@ kubectl apply -f jenkins-service.yaml
 
 ## 部署java项目
 
+- 插件：Pipeline Maven Integration
 - 配置相关maven、gitlab、git、ssh等
+
+```bash
+# 安装maven环境挂在到容器中
+wget https://downloads.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz
+mkdir -p /opt/jenkins/maven
+tar -xvzf apache-maven-3.8.8-bin.tar.gz -C /opt/jenkins/maven
+```
+
 - 打包shell
 
 ```shell
