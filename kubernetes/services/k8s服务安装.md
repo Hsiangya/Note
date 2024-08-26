@@ -650,28 +650,62 @@ helm search repo harbor -l |  grep harbor/harbor  | head  -4
 # 拉取harbor
 helm pull harbor/harbor --version 1.15.0
 tar zxvf harbor-1.15.0.tgz
-
-# 创建一个namespace
-kubectl create namespace harbor
-
-# 创建ssl证书
-kubectl create secret tls harbor-cert --cert=/opt/certs/harbor.hsiangya.top.pem --key=/opt/certs/hsiangya.key -n harbor
-
-# 编辑配置我呢见
+# 编辑配置文件
 cd harbor
 vim values.yaml
 
 ```
 
-- 修改配置文件：`values.yaml`
-  - persistentVolumeClaim：数据卷挂载 指定`storageClass`(通过`kubectl get storageClass`查询)
-  - harborAdminPassword：配置管理员密码
-  - exppos：secretName,证书配置信息与域名
+- 创建相关资源
+
+```bash
+kubectl create namespace harbor
+# 创建ssl证书配置
+kubectl create secret tls harbor-tls-secret --cert=/opt/certs/harbor.hsiangya.top.pem --key=/opt/certs/hsiangya.key -n harbor
+```
+
+- 修改PVC配置
+
+```yaml
+persistence:
+  persistentVolumeClaim:
+    registry:
+      storageClass: "managed-nfs-storage"
+    chartmuseum:
+      storageClass: "managed-nfs-storage"
+    jobservice:
+      storageClass: "managed-nfs-storage"
+    database:
+      storageClass: "managed-nfs-storage"
+    redis:
+      storageClass: "managed-nfs-storage"
+```
+
+- 修改证书域名配置
+
+```yaml
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: secret
+    secret:
+      secretName: harbor-tls-secret  # 使用刚才创建的 Secret 名称
+  ingress:
+    hosts:
+      core: harbor.hsiangya.top
+    annotations:
+      kubernetes.io/ingress.class: nginx  
+```
+
+
 
 - 运行
 
 ```bash
 helm install harbor . -f values.yaml -n harbor 
+helm upgrade harbor . -f values.yaml -n harbor
+helm uninstall harbor -n harbor
 ```
 
 # Jenkins
@@ -1122,5 +1156,29 @@ deploy(){
 }
 
 deploy
+```
+
+# Nerdctl
+
+github：`https://developer.aliyun.com/article/1094835`
+
+github：`https://github.com/moby/buildkit`
+
+```bash
+# 下载并安装nerdctl
+wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-1.7.6-linux-amd64.tar.gz
+tar -zxvf nerdctl-1.7.6-linux-amd64.tar.gz
+sudo mv nerdctl /usr/local/bin/
+nerdctl --version
+
+# 下载安装buildkit
+wget https://github.com/moby/buildkit/releases/download/v0.14.1/buildkit-v0.14.1.linux-amd64.tar.gz
+tar -zxvf buildkit-v0.14.1.linux-amd64.tar.gz
+mv bin/* /usr/local/bin
+buildkitd &
+
+# 构建镜像
+nerdctl build -t 你的镜像名称:标签 路径
+nerdctl build -t snowflake:1.0 /opt/snowflake
 ```
 

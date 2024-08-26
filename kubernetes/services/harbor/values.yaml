@@ -25,7 +25,7 @@ expose:
       # The name of secret which contains keys named:
       # "tls.crt" - the certificate
       # "tls.key" - the private key
-      secretName: "harbor-cert"
+      secretName: "harbor-tls-secret"
   ingress:
     hosts:
       core: harbor.hsiangya.top
@@ -42,6 +42,7 @@ expose:
     annotations:
       # note different ingress controllers may require a different ssl-redirect annotation
       # for Envoy, use ingress.kubernetes.io/force-ssl-redirect: "true" and remove the nginx lines below
+      kubernetes.io/ingress.class: nginx
       ingress.kubernetes.io/ssl-redirect: "true"
       ingress.kubernetes.io/proxy-body-size: "0"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
@@ -136,7 +137,7 @@ persistence:
       storageClass: "managed-nfs-storage"
       subPath: ""
       accessMode: ReadWriteOnce
-      size: 100Gi
+      size: 5Gi
       annotations: {}
     jobservice:
       jobLog:
