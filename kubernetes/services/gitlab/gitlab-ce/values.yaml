@@ -51,7 +51,7 @@ global:
   edition: ee
 
   ## https://docs.gitlab.com/charts/charts/globals#gitlab-version
-  gitlabVersion: "17.2.0"
+  gitlabVersion: "17.3.1"
 
   ## https://docs.gitlab.com/charts/charts/globals#application-resource
   application:
@@ -167,6 +167,9 @@ global:
       enabled: true
       # secret:
       # key:
+    # connectTimeout: 1
+    # readTimeout: 1
+    # writeTimeout: 1
     # host: redis.hostedsomewhere.else
     # port: 6379
     # user: webservice
@@ -882,6 +885,10 @@ global:
   ## https://docs.gitlab.com/charts/charts/globals/#jobs
   job:
     nameSuffixOverride:
+
+  traefik:
+    apiVersion: "" # newer apiVersion: "traefik.io/v1alpha1"
+
 ## End of global
 
 upgradeCheck:
@@ -895,6 +902,7 @@ upgradeCheck:
     # in alpine/debian/busybox based images, this is `nobody:nogroup`
     runAsUser: 65534
     fsGroup: 65534
+  containerSecurityContext: {}
   tolerations: []
   annotations: {}
   configMapAnnotations: {}

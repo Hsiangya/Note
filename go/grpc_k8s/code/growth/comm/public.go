@@ -7,15 +7,6 @@ import (
 	"time"
 )
 
-package comm
-
-import (
-"crypto/md5"
-"fmt"
-"io"
-"time"
-)
-
 const TimeLayout = "2006-01-02 15:04:05"
 
 // Now time.Now

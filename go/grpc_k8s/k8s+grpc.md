@@ -1,29 +1,4 @@
-# 用户积分系统
-
-## 系统设计
-
-### 功能设计
-
-- 发放积分：单次任务，每日限额
-- 扣间积分：兑换扣减 ，惩罚扣减
-- 积分过期和衰减：国企清零，周期衰减
-
-### 数据库设计
-
-**积分系统：**
-
-- 任务积分：任务，积分，每日限额，生效时间 
-- 用户积分：用户，总积分
-- 积分明细：用户，任务，积分，获取时间
-- 积分商城：单独设计
-
-**用户等级系统：**
-
--  等级：等级名称，等级描述，成长数值，有效期
-- 特权：等级，产品，功能，有效期
-- 用户等级：用户，等级，到期时间，成长数值
-- 特价商品：需要时可以额外设计
-- 礼品中心：需要时可以额外设计
+# 代码
 
 ## 定义pb文件
 
@@ -329,7 +304,7 @@ func main() {
 }
 ```
 
-## 数据层、服务层代码
+## xorm反向生成数据结构
 
 1. 安装xorm，生成数据模型(`./models`)
 2. 服务的数据库配置和连接示例
@@ -366,4 +341,337 @@ targets:
 ```bash
 reverse -f mysql-usergrowth.yml
 ```
+
+## 配置的加载
+
+```go
+package conf
+
+import (
+	"encoding/json"
+	"log"
+	"os"
+)
+
+var GlobalConfig *ProjectConfig
+
+const envConfigName = "USER_GROWTH_CONFIG"
+
+type ProjectConfig struct {
+	Db struct {
+		Engine          string
+		Username        string
+		Password        string
+		Host            string
+		Port            int
+		Database        string
+		Charset         string
+		ShowSql         bool
+		MaxIdleConns    int
+		MaxOpenConns    int
+		CoonMaxLifetime int
+	}
+	Cache struct{}
+}
+
+func LoadConfigs() {
+	LoadEnvConfig()
+}
+func LoadEnvConfig() {
+	pc := &ProjectConfig{}
+	if strConfigs := os.Getenv(envConfigName); len(strConfigs) > 0 {
+		if err := json.Unmarshal([]byte(strConfigs), pc); err != nil {
+			log.Fatalf("conf.LoadEnvConfig(%s) error=%s\n", envConfigName, err.Error())
+			return
+		}
+	}
+
+	if pc == nil || pc.Db.Username == "" {
+		log.Fatalf("empty os.Getenv config", envConfigName)
+		return
+	}
+
+	GlobalConfig = pc
+}
+
+```
+
+
+
+## 数据库连接
+
+- 实现一个dbhelper
+
+```go
+package dbhelper
+
+import (
+	"fmt"
+	"os"
+	"time"
+	"xorm.io/xorm/log"
+
+	"growth/conf"
+	xlog "log"
+	"xorm.io/xorm"
+)
+
+var dbEngine *xorm.Engine
+
+func InitDb() {
+	if dbEngine != nil {
+		return
+	}
+
+	sourceName := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s",
+		conf.GlobalConfig.Db.Username,
+		conf.GlobalConfig.Db.Password,
+		conf.GlobalConfig.Db.Host,
+		conf.GlobalConfig.Db.Port,
+		conf.GlobalConfig.Db.Database,
+		conf.GlobalConfig.Db.Charset,
+	)
+
+	if engin, err := xorm.NewEngine(conf.GlobalConfig.Db.Engine, sourceName); err != nil {
+		xlog.Fatalf("dbhelper initDb(%s) error%s\n", sourceName, err.Error())
+		return
+	} else {
+		dbEngine = engin
+	}
+
+	// sql log write to stdout
+	logger := log.NewSimpleLogger(os.Stdout)
+	logger.ShowSQL(conf.GlobalConfig.Db.ShowSql)
+	dbEngine.SetLogger(logger)
+
+	if conf.GlobalConfig.Db.ShowSql {
+		dbEngine.SetLogLevel(log.DEFAULT_LOG_LEVEL)
+	} else {
+		dbEngine.SetLogLevel(log.LOG_ERR)
+	}
+
+	// more database config
+	if conf.GlobalConfig.Db.MaxIdleConns > 0 {
+		dbEngine.SetMaxIdleConns(conf.GlobalConfig.Db.MaxIdleConns)
+	}
+
+	if conf.GlobalConfig.Db.MaxOpenConns > 0 {
+		dbEngine.SetMaxOpenConns(conf.GlobalConfig.Db.MaxOpenConns)
+	}
+	if conf.GlobalConfig.Db.CoonMaxLifetime > 0 {
+		dbEngine.SetConnMaxLifetime(time.Minute * time.Duration(conf.GlobalConfig.Db.CoonMaxLifetime))
+	}
+
+}
+
+func GetDb() *xorm.Engine {
+	return dbEngine
+}
+
+```
+
+## 实现数据层代码
+
+分别实现表的数据层代码
+
+```go
+package dao
+
+import (
+	"context"
+	"growth/comm"
+	"growth/dbhelper"
+	"growth/models"
+	"xorm.io/xorm"
+)
+
+type CoinDetailDao struct {
+	db  *xorm.Engine
+	ctx context.Context
+}
+
+func NewCoinDetailDao(ctx context.Context) *CoinDetailDao {
+	return &CoinDetailDao{
+		db:  dbhelper.GetDb(),
+		ctx: ctx,
+	}
+}
+func (dao *CoinDetailDao) Get(id int) (*models.TbCoinDetail, error) {
+	data := &models.TbCoinDetail{}
+	if _, err := dao.db.ID(id).Get(data); err != nil {
+		return nil, err
+	} else if data == nil || data.Id == 0 {
+		return nil, nil
+	} else {
+		return data, nil
+	}
+}
+
+// FindByUid get models by uid
+func (dao *CoinDetailDao) FindByUid(uid, page, size int) ([]models.TbCoinDetail, int64, error) {
+	datalist := make([]models.TbCoinDetail, 0)
+	sess := dao.db.Where("`uid`=?", uid)
+	start := (page - 1) * size
+	total, err := sess.Desc("id").Limit(size, start).FindAndCount(&datalist)
+	return datalist, total, err
+}
+
+func (dao *CoinDetailDao) FindAllPager(page, size int) ([]models.TbCoinDetail, int64, error) {
+	datalist := make([]models.TbCoinDetail, 0)
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 100
+	}
+	start := (page - 1) * size
+	total, err := dao.db.Desc("id").Limit(size, start).FindAndCount(&datalist)
+	return datalist, total, err
+}
+
+func (dao *CoinDetailDao) Insert(data *models.TbCoinDetail) error {
+	data.SysCreated = comm.Now()
+	data.SysUpdated = comm.Now()
+	_, err := dao.db.Insert(data)
+	return err
+}
+
+func (dao *CoinDetailDao) Update(data *models.TbCoinDetail, musColumns ...string) error {
+	sess := dao.db.ID(data.Id)
+	if len(musColumns) > 0 {
+		sess.MustCols(musColumns...)
+	}
+	_, err := sess.Update(data)
+	return err
+}
+
+func (dao *CoinDetailDao) Save(data *models.TbCoinDetail, musColumns ...string) error {
+	if data.Id > 0 {
+		return dao.Update(data, musColumns...)
+	} else {
+		return dao.Insert(data)
+	}
+}
+```
+
+## 数据服务层
+
+分别实现service层，这一层和dao层比较相似，之后修改封装直接在service层进行修改，不需要再dao层进行修改
+
+```go
+package service
+
+import (
+	"context"
+	"growth/dao"
+	"growth/models"
+)
+
+// CoinDetailService service for knowledge article
+type CoinDetailService struct {
+	cxt           context.Context
+	daoCoinDetail *dao.CoinDetailDao
+}
+
+// NewCoinDetailService new instance of CoinDetailService
+func NewCoinDetailService(ctx context.Context) *CoinDetailService {
+	return &CoinDetailService{
+		cxt:           ctx,
+		daoCoinDetail: dao.NewCoinDetailDao(ctx),
+	}
+}
+
+// Get model by id.
+func (s *CoinDetailService) Get(id int) (*models.TbCoinDetail, error) {
+	return s.daoCoinDetail.Get(id)
+}
+
+// FindByUid get models by uid
+func (s *CoinDetailService) FindByUid(uid, page, size int) ([]models.TbCoinDetail, int64, error) {
+	return s.daoCoinDetail.FindByUid(uid, page, size)
+}
+
+// FindAllPager get all models
+func (s *CoinDetailService) FindAllPager(page, size int) ([]models.TbCoinDetail, int64, error) {
+	return s.daoCoinDetail.FindAllPager(page, size)
+}
+
+// Save with Insert and Update
+func (s *CoinDetailService) Save(data *models.TbCoinDetail, musColumns ...string) error {
+	return s.daoCoinDetail.Save(data, musColumns...)
+}
+
+```
+
+## 进行单元测试
+
+- 服务层代码的单元测试与服务层代码在统一目录中
+- 数据库配置信息添加到环境变量
+
+```bash
+export USER_GROWTH_CONFIG='{"Db":{"Engine":"mysql","Username":"hsiangya","Password":"9kX=AwM%raN3g?MW","Host":"localhost","Port":31766,"Database":"user_growth","Charset":"utf8","ShowSql":true,"MaxIdleConns":2,"MaxOpenConns":10,"ConnMaxLifetime":30},"Cache":{}}'
+```
+
+- 编写单元测试代码
+
+```go
+package service
+
+import (
+	"context"
+	_ "github.com/go-sql-driver/mysql"
+	"growth/conf"
+	"growth/dbhelper"
+	"growth/models"
+	"log"
+	"testing"
+	"time"
+)
+
+func initDB() {
+	time.Local = time.UTC
+	conf.LoadConfigs()
+	dbhelper.InitDb()
+}
+
+func TestCoinTaskService_Save(t *testing.T) {
+	initDB()
+	// 初始化一个Service对象
+	s := NewCoinTaskService(context.Background())
+	data := models.TbCoinTask{
+		Id:    0,
+		Task:  "post article",
+		Coin:  10,
+		Limit: 10,
+	}
+	if err := s.Save(&data); err != nil {
+		t.Errorf("Save(%+v) error=%v", data, err)
+	} else {
+		log.Printf("Save data=%+v\n", data)
+	}
+}
+
+func TestCoinTaskService_GetByTask(t *testing.T) {
+	initDB()
+	s := NewCoinTaskService(context.Background())
+	task := "post article"
+	if data, err := s.GetByTask(task); err != nil {
+		t.Errorf("GetByTask(%s) error=%v", task, err)
+	} else {
+		log.Printf("GetByTask(%s) data=%v\n", task, data)
+	}
+}
+
+func TestCoinTaskService_FindAll(t *testing.T) {
+	initDB()
+	s := NewCoinTaskService(context.Background())
+	if dataList, err := s.FindAll(); err != nil {
+		t.Errorf("FindAll() error=%v", err)
+	} else {
+		log.Printf("FindAll() data=%v\n", dataList)
+	}
+}
+```
+
+
 

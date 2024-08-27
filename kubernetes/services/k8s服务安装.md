@@ -1182,3 +1182,240 @@ nerdctl build -t 你的镜像名称:标签 路径
 nerdctl build -t snowflake:1.0 /opt/snowflake
 ```
 
+# gitlab
+
+## 通过配置文件安装
+
+- 编辑配置文件
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitlab
+  namespace: gitlab
+  labels:
+    app: gitlab
+spec:
+  selector:
+    matchLabels:
+      app: gitlab
+  revisionHistoryLimit: 2
+  template:
+    metadata:
+      labels:
+        app: gitlab
+    spec:
+      containers:
+      - name: gitlab
+        image: gitlab/gitlab-ce
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 443
+          name: gitlab443
+        - containerPort: 80
+          name: gitlab80
+        - containerPort: 22
+          name: gitlab22
+        volumeMounts:
+        - name: gitlab-pvc-config
+          mountPath: /etc/gitlab
+        - name: gitlab-pvc-logs
+          mountPath: /var/log/gitlab
+        - name: gitlab-pvc-data
+          mountPath: /var/opt/gitlab
+      volumes:
+      - name: gitlab-pvc-config
+        persistentVolumeClaim:
+          claimName: gitlab-pvc-config
+      - name: gitlab-pvc-logs
+        persistentVolumeClaim:
+          claimName: gitlab-pvc-logs
+      - name: gitlab-pvc-data
+        persistentVolumeClaim:
+          claimName: gitlab-pvc-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitlab
+  namespace: gitlab
+  labels:
+    app: gitlab
+spec:
+  type: ClusterIP
+  ports:
+  - port: 443
+    targetPort: 443
+    name: gitlab443
+  - port: 80
+    targetPort: 80
+    name: gitlab80
+  - port: 22
+    targetPort: 22
+    name: gitlab22
+  selector:
+    app: gitlab
+    
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: gitlab
+  name: gitlab-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: gitlab.hsiangya.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gitlab
+            port:
+              number: 9090
+              
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-pvc-config
+  namespace: gitlab
+  labels:
+    app: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-disk-retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-pvc-logs
+  namespace: gitlab
+  labels:
+    app: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-disk-retain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitlab-pvc-data
+  namespace: gitlab
+  labels:
+    app: gitlab
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-disk-retain
+---
+# 挂载PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-pv-config
+  labels:
+    app: gitlab
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-disk-retain
+  hostPath:
+    path: "/opt/k8s/gitlab/config"
+    
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-pv-logs
+  labels:
+    app: gitlab
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-disk-retain
+  hostPath:
+    path: "/opt/k8s/gitlab/logs"
+    
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gitlab-pv-data
+  labels:
+    app: gitlab
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-disk-retain
+  hostPath:
+    path: "/opt/k8s/gitlab/data"
+```
+
+- 获取初始密码：
+
+  
+
+  > 帐号：root
+  >
+  > 密码：
+
+```bash
+# 默认帐号为root
+kubectl get pod -n gitlab
+kubectl exec -it gitlab-789f974d75-qz6sh -n gitlab -- /bin/bash
+cat /etc/gitlab/initial_root_password
+```
+
+
+
+## 通过helm安装
+
+- 拉取配置文件
+
+```bash
+helm repo add gitlab http://charts.gitlab.io/
+helm repo update
+helm show values gitlab/gitlab --version 8.3.1 > values.yaml
+
+kubectl create ns gitlab
+kubectl create secret tls gitlab-tls-secret --cert=/opt/certs/gitlab.hsiangya.top.pem --key=/opt/certs/gitlab.hsiangya.key -n gitlab
+
+helm pull stable/gitlab-ce
+tar -zxvf gitlab-ce-0.2.3.tgz
+```
+
+- 修改配置
+
+```yaml
+```
+
+- 运行
+
+```bash
+helm install gitlab . -f values.yaml -n gitlab 
+helm upgrade gitlab . -f values.yaml -n gitlab
+helm uninstall gitlab -n gitlab
+```
+

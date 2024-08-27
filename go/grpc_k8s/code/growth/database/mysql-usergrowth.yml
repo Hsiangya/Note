@@ -7,4 +7,4 @@ source:
 targets:
   - type: codes
     language: golang
-    output_dir: ../models/
+    output_dir: ../models/user_growth/
