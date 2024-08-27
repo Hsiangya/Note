@@ -1,6 +1,6 @@
-# 相关服务
+# 边角料
 
-## 证书申请
+## 创建证书私钥
 
 - 使用 OpenSSL 生成私钥和 CSR
 
@@ -41,10 +41,125 @@ openssl req -new -key hsiangya.key -out hsiangya.csr -config openssl-san.cnf
 ```bash
 # 生成密钥库和密钥对
 keytool -genkeypair -alias harboralias -keyalg RSA -keysize 2048 -keystore harbor.hsiangya.top.jks
-
 ```
 
-## 镜像打包工具
+## Nerdctl
+
+github：`https://github.com/moby/buildkit`
+
+> - nerdctl分精简版与完整版
+> - 完整版 `lib` 目录下有现成 `buildkit.service` 文件，需要注意默认的路径是 `/usr/local/bin/buildkitd`
+
+```bash
+# 下载并安装nerdctl、
+wget https://github.com/containerd/nerdctl/releases/download/v1.7.6/nerdctl-full-1.7.6-linux-amd64.tar.gz
+tar -zxvf nerdctl-full-1.7.6-linux-amd64.tar.gz
+tar Cxzvvf /usr/local nerdctl-full-1.7.6-linux-amd64.tar.gz
+
+# 有现成的service文件
+cp lib/systemd/system/buildkit.service /lib/systemd/system/
+systemctl enable buildkit.service --now
+sudo mv nerdctl /usr/local/bin/
+nerdctl --version
+```
+
+- 验证
+
+```bash
+echo 'FROM alpine:latest
+CMD echo "Hello from custom image"' > Dockerfile
+
+nerdctl build -t alpine:test .
+```
+
+## 将docker服务迁移到k8s
+
+- 原始docker命令
+
+```bash
+docker run --name bill -dp 10000:80 \
+-w /app \
+-v "/data/beancount:/data/beancount" \
+-v "/data/beancount/icons:/app/public/icons" \
+-v "/data/beancount/config:/app/config" \
+-v "/data/beancount/logs:/app/logs" \
+xdbin/beancount-gs:latest \
+sh -c "cp -rn /app/public/default_icons/* /app/public/icons && ./beancount-gs -p 80"
+```
+
+- 编辑k8s配置文件
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hsiangya
+---
+# ... (previous PersistentVolumeClaim and Deployment configurations remain unchanged)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: beancount-gs
+  namespace: hsiangya
+spec:
+  selector:
+    app: beancount-gs
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: beancount-ingress
+  namespace: hsiangya
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - hsiangya.top
+    secretName: hsiangya-tls
+  rules:
+  - host: hsiangya.top
+    http:
+      paths:
+      - path: /web
+        pathType: Prefix
+        backend:
+          service:
+            name: beancount-gs
+            port: 
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: beancount-gs
+            port: 
+              number: 80
+```
+
+- 启动服务
+
+```bash
+# 创建一个基础验证
+sudo apt install apache2-utils
+htpasswd -c auth hsiangya
+kubectl create secret generic basic-auth --from-file=auth -n hsiangya
+
+kubectl create secret tls hsiangya-tls -n hsiangya \
+  --key /opt/certs/hsiangya.top.key \
+  --cert /opt/certs/hsiangya.top.pem
+kubectl apply -f bill-deploy.yaml
+```
 
 # Mysql
 
@@ -653,7 +768,6 @@ tar zxvf harbor-1.15.0.tgz
 # 编辑配置文件
 cd harbor
 vim values.yaml
-
 ```
 
 - 创建相关资源
@@ -1419,3 +1533,5 @@ helm upgrade gitlab . -f values.yaml -n gitlab
 helm uninstall gitlab -n gitlab
 ```
 
+=======
+>>>>>>> origin/main
