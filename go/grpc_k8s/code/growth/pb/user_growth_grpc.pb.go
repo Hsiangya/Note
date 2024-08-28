@@ -36,7 +36,7 @@ type UserCoinClient interface {
 	// 获取用户的积分信息
 	UserCoinInfo(ctx context.Context, in *UserCoinInfoRequest, opts ...grpc.CallOption) (*UserCoinInfoReply, error)
 	// 获取用户的积分明细列表
-	UserCoinDetails(ctx context.Context, in *UserCoinDetailsRequest, opts ...grpc.CallOption) (*UserCoinDetailsReply, error)
+	UserCoinDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error)
 	// 调整用户积分-奖励和惩罚都是用这个接口
 	UserCoinChange(ctx context.Context, in *UserCoinChangeRequest, opts ...grpc.CallOption) (*UserCoinChangeReply, error)
 }
@@ -69,9 +69,9 @@ func (c *userCoinClient) UserCoinInfo(ctx context.Context, in *UserCoinInfoReque
 	return out, nil
 }
 
-func (c *userCoinClient) UserCoinDetails(ctx context.Context, in *UserCoinDetailsRequest, opts ...grpc.CallOption) (*UserCoinDetailsReply, error) {
+func (c *userCoinClient) UserCoinDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UserCoinDetailsReply)
+	out := new(UserDetailsReply)
 	err := c.cc.Invoke(ctx, UserCoin_UserCoinDetails_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ type UserCoinServer interface {
 	// 获取用户的积分信息
 	UserCoinInfo(context.Context, *UserCoinInfoRequest) (*UserCoinInfoReply, error)
 	// 获取用户的积分明细列表
-	UserCoinDetails(context.Context, *UserCoinDetailsRequest) (*UserCoinDetailsReply, error)
+	UserCoinDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error)
 	// 调整用户积分-奖励和惩罚都是用这个接口
 	UserCoinChange(context.Context, *UserCoinChangeRequest) (*UserCoinChangeReply, error)
 	mustEmbedUnimplementedUserCoinServer()
@@ -116,7 +116,7 @@ func (UnimplementedUserCoinServer) ListTasks(context.Context, *ListTasksRequest)
 func (UnimplementedUserCoinServer) UserCoinInfo(context.Context, *UserCoinInfoRequest) (*UserCoinInfoReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UserCoinInfo not implemented")
 }
-func (UnimplementedUserCoinServer) UserCoinDetails(context.Context, *UserCoinDetailsRequest) (*UserCoinDetailsReply, error) {
+func (UnimplementedUserCoinServer) UserCoinDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UserCoinDetails not implemented")
 }
 func (UnimplementedUserCoinServer) UserCoinChange(context.Context, *UserCoinChangeRequest) (*UserCoinChangeReply, error) {
@@ -172,7 +172,7 @@ func _UserCoin_UserCoinInfo_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _UserCoin_UserCoinDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UserCoinDetailsRequest)
+	in := new(UserDetailsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func _UserCoin_UserCoinDetails_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: UserCoin_UserCoinDetails_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserCoinServer).UserCoinDetails(ctx, req.(*UserCoinDetailsRequest))
+		return srv.(UserCoinServer).UserCoinDetails(ctx, req.(*UserDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

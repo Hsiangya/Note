@@ -10,7 +10,7 @@ service UserCoin{
   // 获取用户的积分信息
   rpc UserCoinInfo(UserCoinInfoRequest) returns (UserCoinInfoReply){}
   // 获取用户的积分明细列表
-  rpc UserCoinDetails(UserCoinDetailsRequest) returns (UserCoinDetailsReply){}
+  rpc UserCoinDetails(UserDetailsRequest) returns (UserDetailsReply){}
   // 调整用户积分-奖励和惩罚都是用这个接口
   rpc UserCoinChange(UserCoinChangeRequest) returns (UserCoinChangeReply){}
 }
@@ -29,69 +29,85 @@ service UserGrade {
 }
 
 // 请求和响应消息
-message ListTasksRequest{}
-message ListTasksReply{
-  repeated TbCoinDetail dataLIst = 1;
+message ListTasksRequest {
 }
-message UserCoinInfoRequest{
+
+message ListTasksReply {
+  repeated TbCoinTask datalist = 1;
+}
+
+message UserCoinInfoRequest {
   int32 uid = 1;
 }
-message UserCoinInfoReply{
+
+message UserCoinInfoReply {
   TbCoinUser data = 1;
 }
-message UserCoinDetailsRequest{
+
+message UserDetailsRequest {
   int32 uid = 1;
   int32 page = 2;
   int32 size = 3;
 }
-message UserCoinDetailsReply{
-  repeated TbCoinDetail dataList = 1;
+
+message UserDetailsReply {
+  repeated TbCoinDetail datalist = 1;
   int32 total = 2;
 }
-message UserCoinChangeRequest{
+
+message UserCoinChangeRequest {
   int32 uid = 1;
   string task = 2;
   int32 coin = 3;
 }
-message UserCoinChangeReply{
+
+message UserCoinChangeReply {
   TbCoinUser user = 1;
 }
 
-message ListGradesRequest{}
-message ListGradesReply{
+message ListGradesRequest {
+}
+
+message ListGradesReply {
   repeated TbGradeInfo datalist = 1;
 }
-message ListGradePrivilegesRequest{
+
+message ListGradePrivilegesRequest {
   int32 grade_id = 1;
 }
-message ListGradePrivilegesReply{
+
+message ListGradePrivilegesReply {
   repeated TbGradePrivilege datalist = 1;
 }
-message CheckUserPrivilegeRequest{
+
+message CheckUserPrivilegeRequest {
   int32 uid = 1;
   string product = 2;
   string function = 3;
 }
-message CheckUserPrivilegeReply{
+
+message CheckUserPrivilegeReply {
   bool data = 1;
 }
-message UserGradeInfoRequest{
+
+message UserGradeInfoRequest {
   int32 uid = 1;
 }
-message UserGradeInfoReply{
-  TbGradeInfo data = 1;
-}
-message UserGradeChangeRequest{
-  int32 uid = 1;
-  int32 score = 2;
-}
-message UserGradeChangeReply{
+
+message UserGradeInfoReply {
   TbGradeUser data = 1;
 }
 
+message UserGradeChangeRequest {
+  int32 uid = 1;
+  int32 score = 2;
+}
 
-// 数据表模型消息
-message TbCoinDetail{
+message UserGradeChangeReply {
+  TbGradeUser data = 1;
+}
+
+message TbCoinDetail {
   int32 id = 1;
   int32 uid = 2;
   int32 task_id = 3;
@@ -99,7 +115,54 @@ message TbCoinDetail{
   string sys_created = 5;
   string sys_updated = 6;
 }
-message TbCoinUser{}
-message TbGradeInfo{}
-message TbGradePrivilege{}
-message TbGradeUser{}
+
+message TbCoinTask {
+  int32 id = 1;
+  string task = 2;
+  int32 coin = 3;
+  int32 limit = 4;
+  string start = 5;
+  string sys_created = 6;
+  string sys_updated = 7;
+  int32 sys_status = 8;
+}
+
+message TbCoinUser {
+  int32 id = 1;
+  int32 uid = 2;
+  int32 coins = 3;
+  string sys_created = 4;
+  string sys_updated = 5;
+}
+
+message TbGradeInfo {
+  int32 id = 1;
+  string title = 2;
+  string description = 3;
+  int32 score = 4;
+  int32 expired = 5;
+  string sys_created = 6;
+  string sys_updated = 7;
+}
+
+message TbGradePrivilege {
+  int32 id = 1;
+  int32 grade_id = 2;
+  string product = 3;
+  string function = 4;
+  string description = 5;
+  int32 expired = 6;
+  string sys_created = 7;
+  string sys_updated = 8;
+  int32 sys_status = 9;
+}
+
+message TbGradeUser {
+  int32 id = 1;
+  int32 uid = 2;
+  int32 grade_id = 3;
+  string expired = 4;
+  int32 score = 5;
+  string sys_created = 6;
+  string sys_updated = 7;
+}
