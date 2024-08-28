@@ -675,5 +675,288 @@ func TestCoinTaskService_FindAll(t *testing.T) {
 
 ## 应用层代码
 
+```go
+package ugserver
 
+import (
+	"context"
+	"errors"
+	"growth/models"
+	"growth/pb"
+	"growth/service"
+	"log"
+)
+
+type UgCoinServer struct {
+	pb.UnimplementedUserCoinServer
+}
+
+func (s *UgCoinServer) ListTasks(ctx context.Context, in *pb.ListTasksRequest) (*pb.ListTasksReply, error) {
+	log.Printf("UgCoinServer.ListTasksRequest=%+v\n", *in)
+	//return nil, status.Errorf(codes.Unimplemented, "方法待实现")
+	coinTaskSvc := service.NewCoinTaskService(ctx)
+	datalist, err := coinTaskSvc.FindAll()
+	if err != nil {
+		return nil, err
+	}
+
+	// 数据库数据转换成返回的数据
+	dlist := make([]*pb.TbCoinTask, len(datalist))
+	for i := range datalist {
+		dlist[i] = models.CoinTaskToMessage(&datalist[i])
+	}
+	out := &pb.ListTasksReply{
+		Datalist: dlist,
+	}
+	return out, nil
+}
+
+// UserCoinInfo 获取用户的积分信息
+func (s *UgCoinServer) UserCoinInfo(ctx context.Context, in *pb.UserCoinInfoRequest) (*pb.UserCoinInfoReply, error) {
+	log.Printf("UgCoinServer.UserCoinInfoRequest=%+v\n", *in)
+	//return nil, status.Errorf(codes.Unimplemented, "方法待实现")
+	coinUserSvc := service.NewCoinUserService(ctx)
+	uid := int(in.Uid)
+	data, err := coinUserSvc.GetByUid(uid)
+	if err != nil {
+		return nil, err
+	}
+	d := models.CoinUserToMessage(data)
+	out := &pb.UserCoinInfoReply{
+		Data: d,
+	}
+	return out, nil
+}
+
+// UserDetails 获取用户的积分明细列表
+func (s *UgCoinServer) UserDetails(ctx context.Context, in *pb.UserDetailsRequest) (*pb.UserDetailsReply, error) {
+	log.Printf("UgCoinServer.UserDetailsRequest=%+v\n", *in)
+	//return nil, status.Errorf(codes.Unimplemented, "方法待实现")
+	uid := int(in.Uid)
+	page := int(in.Page)
+	size := int(in.Size)
+	coinDetailSvc := service.NewCoinDetailService(ctx)
+	datalist, total, err := coinDetailSvc.FindByUid(uid, page, size)
+	if err != nil {
+		return nil, err
+	}
+	dlist := make([]*pb.TbCoinDetail, len(datalist))
+	for i := range datalist {
+		dlist[i] = models.CoinDetailToMessage(&datalist[i])
+	}
+	out := &pb.UserDetailsReply{
+		Datalist: dlist,
+		Total:    int32(total),
+	}
+	return out, nil
+}
+
+// UserCoinChange 调整用户积分-奖励和惩罚都是这个接口
+func (s *UgCoinServer) UserCoinChange(ctx context.Context, in *pb.UserCoinChangeRequest) (*pb.UserCoinChangeReply, error) {
+	log.Printf("UgCoinServer.UserCoinChangeRequest=%+v\n", *in)
+	//return nil, status.Errorf(codes.Unimplemented, "方法待实现")
+	uid := int(in.Uid)
+	task := in.Task
+	coin := int(in.Coin)
+	taskInfo, err := service.NewCoinTaskService(ctx).GetByTask(task)
+	if err != nil {
+		return nil, err
+	}
+	if taskInfo == nil {
+		return nil, errors.New("任务不存在")
+	}
+	// 插入详情
+	coinDetail := models.TbCoinDetail{
+		Uid:    uid,
+		TaskId: taskInfo.Id,
+		Coin:   coin,
+	}
+	err = service.NewCoinDetailService(ctx).Save(&coinDetail)
+	if err != nil {
+		return nil, err
+	}
+	// 更新用户信息
+	coinUserSvc := service.NewCoinUserService(ctx)
+	coinUser, err := coinUserSvc.GetByUid(uid)
+	if err != nil {
+		return nil, err
+	}
+	if coinUser == nil {
+		coinUser = &models.TbCoinUser{
+			Uid:   uid,
+			Coins: coin,
+		}
+	} else {
+		coinUser.Coins += coin
+		coinUser.SysCreated = nil
+		coinUser.SysUpdated = nil
+	}
+
+	err = coinUserSvc.Save(coinUser)
+	if err != nil {
+		return nil, err
+	}
+	out := &pb.UserCoinChangeReply{
+		User: models.CoinUserToMessage(coinUser),
+	}
+	return out, nil
+}
+```
+
+## 验证服务效果
+
+- 启动grpc服务端程序
+
+```go
+package main
+
+import (
+	_ "github.com/go-sql-driver/mysql"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+	"growth/conf"
+	"growth/dbhelper"
+	"growth/pb"
+	"growth/ugserver"
+	"log"
+	"net"
+	"time"
+)
+
+func initDb() {
+	// default UTC time location
+	time.Local = time.UTC
+	// Load global config
+	conf.LoadConfigs()
+	// Initialize db
+	dbhelper.InitDb()
+}
+func main() {
+	// 初始化数据库实例
+	initDb()
+
+	lis, err := net.Listen("tcp", ":7789")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	//creds, err := credentials.NewServerTLSFromFile("cert/server.pem", "cert/server.key")
+	//if err != nil {
+	//	log.Fatalf("credentials.NewServerTLSFromFile error=%v", err)
+	//}
+	//opts := []grpc.ServerOption{
+	//	grpc.WriteBufferSize(1024 * 1024 * 1), // 默认32KB
+	//	grpc.ReadBufferSize(1024 * 1024 * 1),  // 默认32KB
+	//	grpc.KeepaliveParams(keepalive.ServerParameters{
+	//		MaxConnectionIdle:     10 * time.Minute, // 没有消息的最长时间
+	//		MaxConnectionAge:      1 * time.Hour,    // 连接最长时间
+	//		MaxConnectionAgeGrace: 10 * time.Minute, // 最长时间后延迟关闭
+	//		Time:                  2 * time.Minute,  // ping间隔
+	//		Timeout:               3 * time.Second,  // ping超时
+	//	}),
+	//	grpc.MaxConcurrentStreams(1000),
+	//	grpc.ConnectionTimeout(time.Second * 1), // 连接超时
+	//	grpc.Creds(creds),
+	//}
+	//s := grpc.NewServer(opts...)
+	s := grpc.NewServer()
+	// 注册服务
+	pb.RegisterUserCoinServer(s, &ugserver.UgCoinServer{})
+	pb.RegisterUserGradeServer(s, &ugserver.UgGradeServer{})
+	reflection.Register(s)
+	// 启动服务
+	log.Printf("server listening at %v\n", lis.Addr())
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+```
+
+- 编写客户端程序，调用相关rpc方法
+
+```go
+package main
+
+import (
+	"context"
+	"flag"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
+	"growth/pb"
+	"log"
+	"sync"
+	"time"
+)
+
+var connPool = sync.Pool{
+	New: func() any {
+		// 连接到服务
+		addr := flag.String("addr", "localhost:7789", "the address to connect to")
+		opts := []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithWriteBufferSize(1024 * 1024 * 1), // 默认32KB
+			grpc.WithReadBufferSize(1024 * 1024 * 1),  // 默认32KB,
+			grpc.WithKeepaliveParams(keepalive.ClientParameters{
+				Time:                10 * time.Minute,
+				Timeout:             10 * time.Second,
+				PermitWithoutStream: false,
+			}),
+		}
+		conn, err := grpc.Dial(*addr, opts...)
+		if err != nil {
+			log.Fatalf("did not connect: %v", err)
+		}
+		return conn
+	},
+}
+
+func GetConn() *grpc.ClientConn {
+	return connPool.Get().(*grpc.ClientConn)
+}
+func CloseConn(conn *grpc.ClientConn) {
+	connPool.Put(conn)
+}
+
+func main() {
+	conn := GetConn()
+	if conn != nil {
+		defer CloseConn(conn)
+	} else {
+		log.Fatalf("connection nil")
+	}
+	// 请求服务
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	// 新建客户端
+	cCoin := pb.NewUserCoinClient(conn)
+	cGrade := pb.NewUserGradeClient(conn)
+	// 测试1：UserCoinServer.ListTasks
+	r1, err1 := cCoin.ListTasks(ctx, &pb.ListTasksRequest{})
+	if err1 != nil {
+		log.Printf("cCoin.ListTasks error=%v\n", err1)
+	} else {
+		log.Printf("cCoin.ListTasks: %+v\n", r1.GetDatalist())
+	}
+	// 测试2：UserGradeServer.ListGrades
+	r2, err2 := cGrade.ListGrades(ctx, &pb.ListGradesRequest{})
+	if err2 != nil {
+		log.Printf("cGrade.ListGrades error=%v\n", err2)
+	} else {
+		log.Printf("cGrade.ListGrades: %+v\n", r2.GetDatalist())
+	}
+	// 测试3：修改积分
+	r3, err3 := cCoin.UserCoinChange(ctx, &pb.UserCoinChangeRequest{
+		Uid:  0,
+		Task: "abc",
+		Coin: 0,
+	})
+	if err3 != nil {
+		log.Printf("cCoin.UserCoinChange error=%v\n", err3)
+	} else {
+		log.Printf("cCoin.UserCoinChange: %+v\n", r3.GetUser())
+	}
+}
+```
+
+- 执行客户端程序，验证最终效果
 
