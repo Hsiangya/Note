@@ -1182,9 +1182,9 @@ func main() {
 }
 ```
 
-## 通过Gateway实现
+### 通过Gateway实现
 
-- 添加proto文件、以及相关依赖
+- 添加proto文件、以及相关依赖，
 
 ```bash
 # 安装代码生成工具
@@ -1203,13 +1203,12 @@ cd pb
 curl -o google/api/annotations.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto
 curl -o google/api/http.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/http.proto
 curl -o google/protobuf/descriptor.proto https://raw.githubusercontent.com/protocolbuffers/protobuf/master/src/google/protobuf/descriptor.proto
-curl -o google/api/annotations.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto
-curl -o google/api/field_behavior.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/field_behavior.proto
-cd ..
-
+# curl -o google/api/field_behavior.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/field_behavior.proto
 ```
 
 - proto文件中引入依赖，并接入google.api.http的设置
+
+  > golang编辑器setting-->Languages&Franeworks-->Protocol Buffers，设置protocol buffers的路径，否则proto文件中会爆红
 
 ```protobuf
 syntax="proto3";
@@ -1234,11 +1233,58 @@ service UserCoin {
       body: "*"
     };
   }
+  。。。。。。。。。。。。。。。。。。。。。。
 ```
 
 - 生成grpc-gateway代码
 
 ```bash
 protoc -I . --grpc-gateway_out ./  --grpc-gateway_opt logtostderr=true  --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true  user_growth.proto
+```
+
+- 定义http服务
+
+```go
+func mainGateWay() {
+	initDb()
+	s := grpc.NewServer()
+	// 注册GRPC服务
+	pb.RegisterUserCoinServer(s, &ugserver.UgCoinServer{})
+	pb.RegisterUserGradeServer(s, &ugserver.UgGradeServer{})
+
+	// 注册gateway服务
+	mux := runtime.NewServeMux()
+	ctx := context.Background()
+	if err := pb.RegisterUserCoinHandlerServer(ctx, mux, &ugserver.UgCoinServer{}); err != nil {
+		log.Printf("Fail to RegisterUserCoinHandlerServer error=%v", err)
+	}
+	if err := pb.RegisterUserGradeHandlerServer(ctx, mux, &ugserver.UgGradeServer{}); err != nil {
+		log.Printf("Fail to RegisterUserGradeHandlerServer error=%v", err)
+	}
+
+	// 定义gateway对象
+	httpMux := http.NewServeMux()
+	httpMux.Handle("/v1/UserGrowth", mux) // 地址需要与pb文件中一致
+	server := &http.Server{
+		Addr: ":8081",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("http.HandleFunc url=%s", r.URL)
+			mux.ServeHTTP(w, r)
+		}),
+	}
+
+	// 启动gateway服务
+	log.Printf("Server.ListenAndServe(%s)", server.Addr)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("ListenAndServe error=%v", err)
+	}
+}
+```
+
+- 测试服务
+
+```bash
+curl http://localhost:8080/v1/UserGrowth.UserGrade/ListGrades
+curl http://localhost:8081/v1/UserGrowth.UserGrade/ListGrades
 ```
 

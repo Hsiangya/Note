@@ -19,25 +19,23 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	UserCoin_ListTasks_FullMethodName       = "/UserGrowth.UserCoin/ListTasks"
-	UserCoin_UserCoinInfo_FullMethodName    = "/UserGrowth.UserCoin/UserCoinInfo"
-	UserCoin_UserCoinDetails_FullMethodName = "/UserGrowth.UserCoin/UserCoinDetails"
-	UserCoin_UserCoinChange_FullMethodName  = "/UserGrowth.UserCoin/UserCoinChange"
+	UserCoin_ListTasks_FullMethodName      = "/UserGrowth.UserCoin/ListTasks"
+	UserCoin_UserCoinInfo_FullMethodName   = "/UserGrowth.UserCoin/UserCoinInfo"
+	UserCoin_UserDetails_FullMethodName    = "/UserGrowth.UserCoin/UserDetails"
+	UserCoin_UserCoinChange_FullMethodName = "/UserGrowth.UserCoin/UserCoinChange"
 )
 
 // UserCoinClient is the client API for UserCoin service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// 服务
 type UserCoinClient interface {
 	// 获取所有的积分任务列表
 	ListTasks(ctx context.Context, in *ListTasksRequest, opts ...grpc.CallOption) (*ListTasksReply, error)
 	// 获取用户的积分信息
 	UserCoinInfo(ctx context.Context, in *UserCoinInfoRequest, opts ...grpc.CallOption) (*UserCoinInfoReply, error)
 	// 获取用户的积分明细列表
-	UserCoinDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error)
-	// 调整用户积分-奖励和惩罚都是用这个接口
+	UserDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error)
+	// 调整用户积分-奖励和惩罚都是这个接口
 	UserCoinChange(ctx context.Context, in *UserCoinChangeRequest, opts ...grpc.CallOption) (*UserCoinChangeReply, error)
 }
 
@@ -69,10 +67,10 @@ func (c *userCoinClient) UserCoinInfo(ctx context.Context, in *UserCoinInfoReque
 	return out, nil
 }
 
-func (c *userCoinClient) UserCoinDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error) {
+func (c *userCoinClient) UserDetails(ctx context.Context, in *UserDetailsRequest, opts ...grpc.CallOption) (*UserDetailsReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(UserDetailsReply)
-	err := c.cc.Invoke(ctx, UserCoin_UserCoinDetails_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, UserCoin_UserDetails_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -92,16 +90,14 @@ func (c *userCoinClient) UserCoinChange(ctx context.Context, in *UserCoinChangeR
 // UserCoinServer is the server API for UserCoin service.
 // All implementations must embed UnimplementedUserCoinServer
 // for forward compatibility
-//
-// 服务
 type UserCoinServer interface {
 	// 获取所有的积分任务列表
 	ListTasks(context.Context, *ListTasksRequest) (*ListTasksReply, error)
 	// 获取用户的积分信息
 	UserCoinInfo(context.Context, *UserCoinInfoRequest) (*UserCoinInfoReply, error)
 	// 获取用户的积分明细列表
-	UserCoinDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error)
-	// 调整用户积分-奖励和惩罚都是用这个接口
+	UserDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error)
+	// 调整用户积分-奖励和惩罚都是这个接口
 	UserCoinChange(context.Context, *UserCoinChangeRequest) (*UserCoinChangeReply, error)
 	mustEmbedUnimplementedUserCoinServer()
 }
@@ -116,8 +112,8 @@ func (UnimplementedUserCoinServer) ListTasks(context.Context, *ListTasksRequest)
 func (UnimplementedUserCoinServer) UserCoinInfo(context.Context, *UserCoinInfoRequest) (*UserCoinInfoReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UserCoinInfo not implemented")
 }
-func (UnimplementedUserCoinServer) UserCoinDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UserCoinDetails not implemented")
+func (UnimplementedUserCoinServer) UserDetails(context.Context, *UserDetailsRequest) (*UserDetailsReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UserDetails not implemented")
 }
 func (UnimplementedUserCoinServer) UserCoinChange(context.Context, *UserCoinChangeRequest) (*UserCoinChangeReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UserCoinChange not implemented")
@@ -171,20 +167,20 @@ func _UserCoin_UserCoinInfo_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-func _UserCoin_UserCoinDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _UserCoin_UserDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UserDetailsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(UserCoinServer).UserCoinDetails(ctx, in)
+		return srv.(UserCoinServer).UserDetails(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: UserCoin_UserCoinDetails_FullMethodName,
+		FullMethod: UserCoin_UserDetails_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(UserCoinServer).UserCoinDetails(ctx, req.(*UserDetailsRequest))
+		return srv.(UserCoinServer).UserDetails(ctx, req.(*UserDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -223,8 +219,8 @@ var UserCoin_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _UserCoin_UserCoinInfo_Handler,
 		},
 		{
-			MethodName: "UserCoinDetails",
-			Handler:    _UserCoin_UserCoinDetails_Handler,
+			MethodName: "UserDetails",
+			Handler:    _UserCoin_UserDetails_Handler,
 		},
 		{
 			MethodName: "UserCoinChange",
@@ -251,7 +247,7 @@ type UserGradeClient interface {
 	ListGrades(ctx context.Context, in *ListGradesRequest, opts ...grpc.CallOption) (*ListGradesReply, error)
 	// 获取等级的特权列表
 	ListGradePrivileges(ctx context.Context, in *ListGradePrivilegesRequest, opts ...grpc.CallOption) (*ListGradePrivilegesReply, error)
-	// 检查用户是否有某个产品的特权
+	// 检查用户是否有某个产品特权
 	CheckUserPrivilege(ctx context.Context, in *CheckUserPrivilegeRequest, opts ...grpc.CallOption) (*CheckUserPrivilegeReply, error)
 	// 获取用户的等级信息
 	UserGradeInfo(ctx context.Context, in *UserGradeInfoRequest, opts ...grpc.CallOption) (*UserGradeInfoReply, error)
@@ -325,7 +321,7 @@ type UserGradeServer interface {
 	ListGrades(context.Context, *ListGradesRequest) (*ListGradesReply, error)
 	// 获取等级的特权列表
 	ListGradePrivileges(context.Context, *ListGradePrivilegesRequest) (*ListGradePrivilegesReply, error)
-	// 检查用户是否有某个产品的特权
+	// 检查用户是否有某个产品特权
 	CheckUserPrivilege(context.Context, *CheckUserPrivilegeRequest) (*CheckUserPrivilegeReply, error)
 	// 获取用户的等级信息
 	UserGradeInfo(context.Context, *UserGradeInfoRequest) (*UserGradeInfoReply, error)

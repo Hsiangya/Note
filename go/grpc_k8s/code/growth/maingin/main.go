@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -10,6 +12,7 @@ import (
 	"growth/conf"
 	"growth/dbhelper"
 	"growth/pb"
+	"growth/ugserver"
 	"log"
 	"net/http"
 	"time"
@@ -114,6 +117,42 @@ func mainGin() {
 	server.ListenAndServe()
 }
 
+func mainGateWay() {
+	initDb()
+	s := grpc.NewServer()
+	// 注册GRPC服务
+	pb.RegisterUserCoinServer(s, &ugserver.UgCoinServer{})
+	pb.RegisterUserGradeServer(s, &ugserver.UgGradeServer{})
+
+	// 注册gateway服务
+	mux := runtime.NewServeMux()
+	ctx := context.Background()
+	if err := pb.RegisterUserCoinHandlerServer(ctx, mux, &ugserver.UgCoinServer{}); err != nil {
+		log.Printf("Fail to RegisterUserCoinHandlerServer error=%v", err)
+	}
+	if err := pb.RegisterUserGradeHandlerServer(ctx, mux, &ugserver.UgGradeServer{}); err != nil {
+		log.Printf("Fail to RegisterUserGradeHandlerServer error=%v", err)
+	}
+
+	// 定义gateway对象
+	httpMux := http.NewServeMux()
+	httpMux.Handle("/v1/UserGrowth", mux) // 地址需要与pb文件中一致
+	server := &http.Server{
+		Addr: ":8081",
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("http.HandleFunc url=%s", r.URL)
+			mux.ServeHTTP(w, r)
+		}),
+	}
+
+	// 启动gateway服务
+	log.Printf("Server.ListenAndServe(%s)", server.Addr)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatalf("ListenAndServe error=%v", err)
+	}
+}
+
 func main() {
+	go mainGateWay()
 	mainGin()
 }

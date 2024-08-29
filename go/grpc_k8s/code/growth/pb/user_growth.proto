@@ -1,11 +1,9 @@
-syntax="proto3";
+syntax = "proto3";
 
 package UserGrowth;
-option go_package="growth/pb";
-
+option go_package = "growth/pb";
 
 import "google/api/annotations.proto";
-
 
 service UserCoin {
   // 获取所有的积分任务列表
