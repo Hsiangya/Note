@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -10,6 +11,7 @@ import (
 	"growth/ugserver"
 	"log"
 	"net"
+	"net/http"
 	"time"
 )
 
@@ -58,4 +60,14 @@ func main() {
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+
+	g := gin.Default()
+	newServer := &http.Server{
+		Addr:           ":8000",
+		Handler:        g,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
+	newServer.ListenAndServe()
 }
