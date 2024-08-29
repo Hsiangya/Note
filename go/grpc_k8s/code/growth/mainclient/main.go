@@ -26,7 +26,8 @@ var connPool = sync.Pool{
 				PermitWithoutStream: false,
 			}),
 		}
-		conn, err := grpc.Dial(*addr, opts...)
+		//conn, err := grpc.Dial(*addr, opts...)  // 已废弃
+		conn, err := grpc.NewClient(*addr, opts...)
 		if err != nil {
 			log.Fatalf("did not connect: %v", err)
 		}

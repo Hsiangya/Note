@@ -1,4 +1,4 @@
-# 构建grpc服务
+# 构建基础grpc服务
 
 ## 定义pb文件
 
@@ -960,5 +960,95 @@ func main() {
 
 - 执行客户端程序，验证最终效果
 
+# GRPC服务进阶
 
+## grpc连接池
+
+1.  新建连接：`sync.Pool.New`
+2. 获取`connPoll.Get`复用连接
+3. 关闭连接：不是使用`conn.Close`而是使用`connPool.Put`
+
+![image-20240829142128343](./assets/image-20240829142128343.png)
+
+**什么时候使用连接池：**
+
+- gprc使用http2.0，自身本就支持长连接，GRPC单连接支持上万的并发，更高并发才考虑连接池
+- 连接池的引入会增加复杂度，不要过早优化
+- sync.Pool只是临时缓存，连接随时可能失效
+- sync.Pool的连接池是由系统控制的，若put时发现无容量，会新增一个新的大容量Pool
+- sync.Pool的连接池闲置太久，有许多资源浪费时，会自动回收部分连接，因此只是临时缓存
+- 对于新建开销比较大的连接，不建议使用连接池
+
+## 用反射简化gRPC的调用
+
+- 服务端增加一行代码reflection.Register(s)，并启动服务
+
+```go
+func main() {
+	initDb()
+	lis, err := net.Listen("tcp", ":7789")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	s := grpc.NewServer()
+	pb.RegisterUserCoinServer(s, &ugserver.UgCoinServer{})
+	pb.RegisterUserGradeServer(s, &ugserver.UgGradeServer{})
+    
+	reflection.Register(s)  // 添加代码，使用反射注册服务
+
+	log.Printf("server listening at %v\n", lis.Addr())
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+```
+
+- 客户端安装：`https://github.com/fullstorydev/grpcurl`
+
+```bash
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+```
+
+- 调用grpcurl服务
+
+  > 1. 调用：`grpcurl -plaintext:80 <服务>`
+  > 2. 支持：list获取服务、方法清单，describe获取定义源码
+  > 3. grpcurl可以使用Protobuf或者protoset文件
+  > 4. protoc将多个proto文件打包为一个protoset文件
+
+```bash
+# 生成protoset文件
+protoc --proto_path=. --descriptor_set_out=myservice.protoset --include_imports ./user_growth.proto
+
+# 列出所有的grpc服务
+grpcurl -plaintext localhost:7789 list
+
+# 指定上面list命令返回的UserGrowth.UserCoin中的所有方法
+grpcurl -plaintext localhost:7789 list UserGrowth.UserCoin
+
+# 查看grpc服务的方法接口信息，会返回所有的服务方法，请求与返回参数
+grpcurl -plaintext localhost:7789 describe
+# 查看指定方法的描述信息
+grpcurl -plaintext localhost:7789 describe UserGrowth.UserCoin
+grpcurl -plaintext localhost:7789 describe UserGrowth.UserCoin.ListTasks
+
+# 指定pb文件，并查看他的所有方法
+grpcurl -import-path ./ -proto user_growth.proto list
+# 使用protoset文件
+grpcurl -protoset myservice.protoset list UserGrowth.UserCoin
+
+# 调用gRPC服务  -plaintext: 无安全认证的http服务
+grpcurl -plaintext localhost:7789 UserGrowth.UserCoin/ListTasks
+grpcurl -plaintext -d '{\"uid\":1}' localhost:7789 UserGrowth.UserCoin/UserCoinInfo
+```
+
+
+
+```bash
+protoc -I . --grpc-gateway_out ./ \
+    --grpc-gateway_opt logtostderr=true \
+    --grpc-gateway_opt paths=source_relative \
+    --grpc-gateway_opt generate_unbound_methods=true \
+    user_growth.proto
+```
 
