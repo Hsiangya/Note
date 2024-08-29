@@ -1,3 +1,88 @@
+# proto介绍
+
+## 安装
+
+```bash
+# 安装依赖
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+go get -u google.golang.org/grpc
+```
+
+## Protocal Buffers
+
+Protocal Buffers，也就是 protobuf，它是接口设计语言（IDL），它与编程语言无关，可以生成所有主流编程语言的代码，而且，它是二进制格式的数据，比较适合传递大量的数据。
+
+### 语法
+
+```protobuf
+syntax = "proto3";
+
+package user;
+
+option go_package = "userpb";
+import "enum.proto";
+
+message User {
+  int64 id = 1;
+  string name = 2;
+  repeated string emails = 3;
+  Gender gender = 4;
+  reserved 3, 16 to 100, 200 to max;
+  reserved "uid", "uname";
+}
+```
+
+![image-20240413182110007](./assets/image-20240413182110007.png)
+
+### 编译器
+
+```bash
+protoc --go_out=server --go_opt=paths=source_relative --go-grpc_out=server --go-grpc_opt=paths=source_relative -I proto proto/chat.proto
+```
+
+- **--go_out**：指定生成的go代码输出的位置(当前项目往下)
+
+## 启动一个最小服务
+
+```go
+package main
+
+import (
+	proto "goods/services"
+	"google.golang.org/grpc"
+	"net"
+)
+
+type GoodServer struct {
+	proto.UnimplementedGoodsServer
+}
+
+func main() {
+	// 监听端口
+	lis, err := net.Listen("tcp", "0.0.0.0:9001")
+	if err != nil {
+		panic(err)
+	}
+	s := grpc.NewServer()
+	// 注册服务
+	proto.RegisterGoodsServer(s, &GoodServer{})
+    
+    // 服务与端口dining榜第
+	err = s.Serve(lis)
+	if err != nil {
+		panic(err)
+	}
+}
+
+```
+
+## 客户端与服务端通信流程
+
+![image-20240716225332792](./assets/image-20240716225332792.png)
+
+
+
 # 构建基础grpc服务
 
 ## 定义pb文件
@@ -1288,3 +1373,37 @@ curl http://localhost:8080/v1/UserGrowth.UserGrade/ListGrades
 curl http://localhost:8081/v1/UserGrowth.UserGrade/ListGrades
 ```
 
+# k8s
+
+## k8s负载均衡与服务发现
+
+- 服务注册，创建服务，注册信息到k8s
+
+![image-20240829212852445](./assets/image-20240829212852445.png)
+
+- 服务发现，通过服务名找到服务信息
+
+![image-20240829213032687](./assets/image-20240829213032687.png)
+
+负载均衡，调用服务地址，请求到多个后端实例
+
+- kube-proxy组件实现负载均衡：性能压力大
+
+  > 所有请求都通过kube-proxy，既要保证服务注册、服务发现的功能，同时监听和更新服务配置变更，又要监听容器服务的转发，对他的依赖和要求过高
+
+- iptables：性能比kube-proxy高
+
+  > 操作系统内核层，负载的策略有限，只支持随机策略，轮寻策略，
+
+- IPVS：和iptables类似，但实现原理不一样，比iptables更有优势，扩展性好
+
+  > 庞大的k8s集群时，每个节点上都会有大量的规则
+
+- ingress：七层网关服务集群外
+
+  >其余的三种都是在node节点上完成服务转发，性能没有iptables，ipvs强，但较安全
+
+## 测试k8s服务的负载均衡
+
+1. 制作服务的运行镜像，推送到仓库
+2. 部署服务和验证服务的调用
