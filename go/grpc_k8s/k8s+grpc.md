@@ -2,6 +2,13 @@
 
 ## 定义pb文件
 
+- 安装protoc
+
+```bash
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+```
+
 - 文件目录
 
 ```bash
@@ -1042,13 +1049,196 @@ grpcurl -plaintext localhost:7789 UserGrowth.UserCoin/ListTasks
 grpcurl -plaintext -d '{\"uid\":1}' localhost:7789 UserGrowth.UserCoin/UserCoinInfo
 ```
 
+## grpc转Restful API
 
+1. gin路由实现Restful API，再请求grpc服务端
+
+   > - 需要为每一个服务和方法设置路由，实现转发，工作量大，重复性工作多
+   > - http---> grpc client ---> grpc server
+
+2. 使用gateway实现
+
+   ![image-20240829155700516](./assets/image-20240829155700516.png)
+
+### 通过gin实现服务
+
+```go
+import (
+	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"growth/conf"
+	"growth/dbhelper"
+	"growth/pb"
+	"log"
+	"net/http"
+	"time"
+)
+
+func initDb() {
+	// default UTC time location
+	time.Local = time.UTC
+	// Load global config
+	conf.LoadConfigs()
+	// Initialize db
+	dbhelper.InitDb()
+}
+
+var AllowOrigin = map[string]bool{
+	"http://a.site.com": true,
+	"http://b.site.com": true,
+	"http://web.com":    true,
+}
+
+func mainGin() {
+	// 连接到grpc服务的客户端
+	//conn, err := grpc.Dial("localhost:7789", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient("localhost:7789", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	clientCoin := pb.NewUserCoinClient(conn)
+	clientGrade := pb.NewUserGradeClient(conn)
+
+	router := gin.New()
+	router.GET("/hello", func(ctx *gin.Context) {
+		ctx.String(http.StatusOK, "hello")
+	})
+	// 用户积分服务的方法
+	v1Group := router.Group("/v1", func(ctx *gin.Context) {
+
+		// 支持跨域
+		origin := ctx.GetHeader("Origin")
+		if AllowOrigin[origin] {
+			ctx.Header("Access-Control-Allow-Origin", origin)
+			ctx.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTION")
+			ctx.Header("Access-Control-Allow-Headers", "*")
+			ctx.Header("Access-Control-Allow-Credentials", "true")
+		}
+		ctx.Next()
+	})
+	gUserCoin := v1Group.Group("/UserGrowth.UserCoin")
+	gUserCoin.GET("/ListTasks", func(ctx *gin.Context) {
+		out, err := clientCoin.ListTasks(ctx, &pb.ListTasksRequest{})
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"code":    2,
+				"message": err.Error(),
+			})
+		} else {
+			ctx.JSON(http.StatusOK, out)
+		}
+	})
+	gUserCoin.POST("/UserCoinChange", func(ctx *gin.Context) {
+		body := &pb.UserCoinChangeRequest{}
+		err := ctx.BindJSON(body)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"code":    2,
+				"message": err.Error(),
+			})
+		} else if out, err := clientCoin.UserCoinChange(ctx, body); err != nil {
+			ctx.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"code":    2,
+				"message": err.Error(),
+			})
+		} else {
+			ctx.JSON(http.StatusOK, out)
+		}
+		ctx.JSON(http.StatusOK, nil)
+	})
+
+	// 用户等级服务的方法
+	gUserGrade := v1Group.Group("/UserGrowth.UserGrade")
+	gUserGrade.GET("/ListGrades", func(ctx *gin.Context) {
+		out, err := clientGrade.ListGrades(ctx, &pb.ListGradesRequest{})
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, map[string]interface{}{
+				"code":    2,
+				"message": err.Error(),
+			})
+		} else {
+			ctx.JSON(http.StatusOK, out)
+		}
+	})
+
+	// 为http/2配置参数
+	h2Handler := h2c.NewHandler(router, &http2.Server{})
+	// 配置http服务
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: h2Handler,
+	}
+	// 启动http服务
+	server.ListenAndServe()
+}
+
+func main() {
+	mainGin()
+}
+```
+
+## 通过Gateway实现
+
+- 添加proto文件、以及相关依赖
 
 ```bash
-protoc -I . --grpc-gateway_out ./ \
-    --grpc-gateway_opt logtostderr=true \
-    --grpc-gateway_opt paths=source_relative \
-    --grpc-gateway_opt generate_unbound_methods=true \
-    user_growth.proto
+# 安装代码生成工具
+go get -u github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
+go get -u github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2
+go get -u google.golang.org/protobuf/cmd/protoc-gen-go
+go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc
+
+go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway 
+go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2 
+
+# 在当前项目的pb目录下创建对应目录 并将proto下载下来
+mkdir -p pb/google/api
+mkdir -p pb/google/protobuf
+cd pb
+curl -o google/api/annotations.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto
+curl -o google/api/http.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/http.proto
+curl -o google/protobuf/descriptor.proto https://raw.githubusercontent.com/protocolbuffers/protobuf/master/src/google/protobuf/descriptor.proto
+curl -o google/api/annotations.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/annotations.proto
+curl -o google/api/field_behavior.proto https://raw.githubusercontent.com/googleapis/googleapis/master/google/api/field_behavior.proto
+cd ..
+
+```
+
+- proto文件中引入依赖，并接入google.api.http的设置
+
+```protobuf
+syntax="proto3";
+
+option go_package="growth/pb";
+
+package UserGrowth;
+
+import "google/api/annotations.proto"; // 引入依赖
+
+service UserCoin {
+  // 获取所有的积分任务列表
+  rpc ListTasks(ListTasksRequest) returns (ListTasksReply) {
+    option (google.api.http) = { 
+      get: "/v1/UserGrowth.UserCoin/ListTasks"   // 接入google.api.http的依赖
+    };
+  }
+  // 获取用户的积分信息
+  rpc UserCoinInfo(UserCoinInfoRequest) returns (UserCoinInfoReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserCoin/UserCoinInfo"  // 接入google.api.http的依赖
+      body: "*"
+    };
+  }
+```
+
+- 生成grpc-gateway代码
+
+```bash
+protoc -I . --grpc-gateway_out ./  --grpc-gateway_opt logtostderr=true  --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true  user_growth.proto
 ```
 

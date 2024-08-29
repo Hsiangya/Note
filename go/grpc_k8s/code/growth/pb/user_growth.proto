@@ -1,34 +1,79 @@
-syntax = "proto3";
-option go_package = "growth/pb";
+syntax="proto3";
 
 package UserGrowth;
+option go_package="growth/pb";
 
-// 服务
-service UserCoin{
+
+import "google/api/annotations.proto";
+
+
+service UserCoin {
   // 获取所有的积分任务列表
-  rpc ListTasks(ListTasksRequest) returns (ListTasksReply){}
+  rpc ListTasks(ListTasksRequest) returns (ListTasksReply) {
+    option (google.api.http) = {
+      get: "/v1/UserGrowth.UserCoin/ListTasks"
+    };
+  }
   // 获取用户的积分信息
-  rpc UserCoinInfo(UserCoinInfoRequest) returns (UserCoinInfoReply){}
+  rpc UserCoinInfo(UserCoinInfoRequest) returns (UserCoinInfoReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserCoin/UserCoinInfo"
+      body: "*"
+    };
+  }
   // 获取用户的积分明细列表
-  rpc UserCoinDetails(UserDetailsRequest) returns (UserDetailsReply){}
-  // 调整用户积分-奖励和惩罚都是用这个接口
-  rpc UserCoinChange(UserCoinChangeRequest) returns (UserCoinChangeReply){}
+  rpc UserDetails(UserDetailsRequest) returns (UserDetailsReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserCoin/UserDetails"
+      body: "*"
+    };
+  }
+  // 调整用户积分-奖励和惩罚都是这个接口
+  rpc UserCoinChange(UserCoinChangeRequest) returns (UserCoinChangeReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserCoin/UserCoinChange"
+      body: "*"
+    };
+  }
 }
 
 service UserGrade {
   // 获取所有的等级信息列表
-  rpc ListGrades(ListGradesRequest) returns (ListGradesReply){}
+  rpc ListGrades(ListGradesRequest) returns (ListGradesReply) {
+    option (google.api.http) = {
+      get: "/v1/UserGrowth.UserGrade/ListGrades"
+    };
+  }
   // 获取等级的特权列表
-  rpc ListGradePrivileges(ListGradePrivilegesRequest) returns (ListGradePrivilegesReply){}
-  // 检查用户是否有某个产品的特权
-  rpc CheckUserPrivilege(CheckUserPrivilegeRequest) returns (CheckUserPrivilegeReply){}
+  rpc ListGradePrivileges(ListGradePrivilegesRequest) returns (ListGradePrivilegesReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserGrade/ListGradePrivileges"
+      body: "*"
+    };
+  }
+  // 检查用户是否有某个产品特权
+  rpc CheckUserPrivilege(CheckUserPrivilegeRequest) returns (CheckUserPrivilegeReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserGrade/CheckUserPrivilege"
+      body: "*"
+    };
+  }
   // 获取用户的等级信息
-  rpc UserGradeInfo(UserGradeInfoRequest) returns (UserGradeInfoReply){}
+  rpc UserGradeInfo(UserGradeInfoRequest) returns (UserGradeInfoReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserGrade/UserGradeInfo"
+      body: "*"
+    };
+  }
   // 调整用户的等级成长值
-  rpc UserGradeChange(UserGradeChangeRequest) returns (UserGradeChangeReply){}
+  rpc UserGradeChange(UserGradeChangeRequest) returns (UserGradeChangeReply) {
+    option (google.api.http) = {
+      post: "/v1/UserGrowth.UserGrade/UserGradeChange"
+      body: "*"
+    };
+  }
 }
 
-// 请求和响应消息
 message ListTasksRequest {
 }
 
