@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"growth/conf"
 	"growth/dbhelper"
 	"growth/pb"
@@ -124,8 +125,29 @@ func mainGateWay() {
 	pb.RegisterUserCoinServer(s, &ugserver.UgCoinServer{})
 	pb.RegisterUserGradeServer(s, &ugserver.UgGradeServer{})
 
+	// 跨域处理
+	serVeMuxOpt := []runtime.ServeMuxOption{
+		runtime.WithOutgoingHeaderMatcher(func(s string) (string, bool) {
+			return s, true // 对外发发送header
+		}),
+		// 生成 metadata
+		runtime.WithMetadata(func(ctx context.Context, request *http.Request) metadata.MD {
+			origin := request.Header.Get("Origin")
+			if AllowOrigin[origin] {
+				md := metadata.New(map[string]string{
+					"Access-Control-Allow-Origin":      origin,
+					"Access-Control-Allow-Methods":     "GET,POST,PUT,DELETE,OPTION",
+					"Access-Control-Allow-Headers":     "*",
+					"Access-Control-Allow-Credentials": "true",
+				})
+				grpc.SendHeader(ctx, md)
+			}
+			return nil
+		}),
+	}
+
 	// 注册gateway服务
-	mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux(serVeMuxOpt...)
 	ctx := context.Background()
 	if err := pb.RegisterUserCoinHandlerServer(ctx, mux, &ugserver.UgCoinServer{}); err != nil {
 		log.Printf("Fail to RegisterUserCoinHandlerServer error=%v", err)
@@ -134,7 +156,7 @@ func mainGateWay() {
 		log.Printf("Fail to RegisterUserGradeHandlerServer error=%v", err)
 	}
 
-	// 定义gateway对象
+	// 定义http对象
 	httpMux := http.NewServeMux()
 	httpMux.Handle("/v1/UserGrowth", mux) // 地址需要与pb文件中一致
 	server := &http.Server{
