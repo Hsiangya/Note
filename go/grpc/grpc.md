@@ -1407,3 +1407,80 @@ curl http://localhost:8081/v1/UserGrowth.UserGrade/ListGrades
 
 1. 制作服务的运行镜像，推送到仓库
 2. 部署服务和验证服务的调用
+
+# 压力测试
+
+**作用：**
+
+- 发现瓶颈
+- 验证可伸缩性
+- 确保可靠性
+- 改善用户体验
+- 满足业务目标
+
+**量化：**
+
+- 并发能力
+- 延迟/性能
+
+**优化：**
+
+- CPU
+- 内存
+- 网络带宽
+
+**方法：**
+
+- 单个服务压测
+- 全链路压测
+- 本地压测：排除网络的影响
+- 远程分布式压测
+
+## WRK
+
+- 安装
+
+```bash
+sudo apt-get update
+sudo apt-get install build-essential libssl-dev git zlib1g-dev
+wget https://github.com/wg/wrk/archive/refs/tags/4.2.0.tar.gz
+tar -zxvf 4.2.0.tar.gz
+make
+sudo cp wrk /usr/local/bin
+```
+
+- 命令
+
+| 选项      | 说明                       |
+| --------- | -------------------------- |
+| -c        | 保持打开的http连接总数     |
+| -d        | 测试持续时间，如2s，2m，2h |
+| -t        | 使用的线程数               |
+| -s        | 加载并运行Lua脚本          |
+| -H        | 为请求添加HTTP请求haeders  |
+| --latency | 打印详细的延迟统计信息     |
+| --timeout | 请求超时时间               |
+| -v        | 打印版本详细信息           |
+
+```bash
+# 12线程 400个连接 30秒基准测试
+wrk -t12 -c400 -d30s http://example.com
+
+# 添加自定义 header信息
+wrk -t2 -c100 -d15s -H "Authorization: Bearer token" http://api.example.com
+
+# 显示详细的延迟统计
+wrk -t4 -c200 -d10s --latency http://example.com
+
+# 使用lua脚本
+wrk -t2 -c10 -d5s -s ./post.lua http://example.com/api
+```
+
+
+
+
+
+
+
+
+
