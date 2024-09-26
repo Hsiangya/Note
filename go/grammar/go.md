@@ -952,11 +952,49 @@ timer：
 
 ### Server实现
 
+#### server单连接
+
 ![im![image-20240926151853195](./assets/image-20240926151853195.png)
+
+#### server多连接
+
+![image-20240926163413682](./assets/image-20240926163413682.png)
 
 ### Client实现
 
 ![image-20240926153305004](./assets/image-20240926153305004.png)
+
+### listen源码
+
+- 新建一个socket，并执行bind操作
+- 新建一个FD（net包对socket的详情描述）
+- 返回一个TCPListener对象
+- 将TCPListener的FD信息加入监听
+- TCPListener对象本质上是一个LISTEN状态的socket
+- 从通信过程来看，走到了第一步
+
+![image-20240531152737700](./assets/image-20240531152737700.png)
+
+![image-20240531151125715](./assets/image-20240531151125715.png)
+
+### Accept源码
+
+- 直接调用socket的accept
+- 试过失败，休眠等待新的连接
+- 将新的socket包装为tcpConn变量返回
+- 将TCP Conn的FD信息加入监听
+- TCPConn本质上是一个ESTABLISHED状态的Socket
+- 从通信过程来看，走到了第二步
+
+![image-20240531152708170](./assets/image-20240531152708170.png)
+
+![image-20240531153602085](./assets/image-20240531153602085.png)
+
+
+
+![image-20240531153358275](./assets/image-20240531153419092.png)![image-20240531153440792](./assets/image-20240531153440792.png)
+
+![image-20240531153514337](./assets/image-20240531153514337.png)
 
 ## IO模型
 
@@ -1134,45 +1172,6 @@ go Network Poller多路复用器的抽象：
 - Network Poller可以自动监测多个Socket状态
 - 在Socket状态可用时，快速返回成功
 - 在Socket状态不可用时，休眠等待
-
-## Scoket（net包）
-
-- go原生的网络包
-- 实现了TCP、UDP、HTTP登网络操作
-
-### listen
-
-- 新建一个socket，并执行bind操作
-- 新建一个FD（net包对socket的详情描述）
-- 返回一个TCPListener对象
-- 将TCPListener的FD信息加入监听
-- TCPListener对象本质上是一个LISTEN状态的socket
-- 从通信过程来看，走到了第一步
-
-![image-20240531152737700](./assets/image-20240531152737700.png)
-
-![image-20240531151125715](./assets/image-20240531151125715.png)
-
-### Accept
-
-- 直接调用socket的accept
-- 试过失败，休眠等待新的连接
-- 将新的socket包装为tcpConn变量返回
-- 将TCP Conn的FD信息加入监听
-- TCPConn本质上是一个ESTABLISHED状态的Socket
-- 从通信过程来看，走到了第二步
-
-![image-20240531152708170](./assets/image-20240531152708170.png)
-
-![image-20240531153602085](./assets/image-20240531153602085.png)
-
-
-
-![image-20240531153358275](./assets/image-20240531153419092.png)![image-20240531153440792](./assets/image-20240531153440792.png)
-
-![image-20240531153514337](./assets/image-20240531153514337.png)
-
-
 
 # 内存管理
 
