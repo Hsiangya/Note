@@ -938,6 +938,8 @@ timer：
 
 ## scoket
 
+### 通信过程
+
 - 很多系统都提供Socket作为TCP网络连接的抽象
 
 - Linux --> INternet domain socket -> SOCK_STREAM
@@ -947,6 +949,14 @@ timer：
 - Linux 中socket以“文件描述符"FD作为标识
 
 ![image-20240531011955230](./assets/image-20240531011955230.png)
+
+### Server实现
+
+![im![image-20240926151853195](./assets/image-20240926151853195.png)
+
+### Client实现
+
+![image-20240926153305004](./assets/image-20240926153305004.png)
 
 ## IO模型
 
